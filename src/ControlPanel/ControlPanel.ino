@@ -1,10 +1,14 @@
-//ПОЛНОСТЬЮ РАБОЧИЙ СКЕТЧ 8 января 2020 18:22 !!! 1 энкодер,  большой экран, новый термодатчик, датчик пламени
+#include <StaticThreadController.h>
+#include <Thread.h>
+//#include <ThreadController.h>
 
 #include "GyverButton.h" // библиотека подключения кнопки 1811
 #define PIN 14        //кнопка подключена сюда (PIN --- КНОПКА --- GND)1811
 GButton butt1(PIN); //1811
+
 #include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
 //#include <LiquidCrystalRus.h>
+
 #include <OneWire.h>
 OneWire  ds(12);  //
 
@@ -20,6 +24,7 @@ enum eEncoderState {eNone, eLeft, eRight, eButton};
 byte EncoderA, EncoderB, EncoderAPrev,counter;
 bool ButtonPrev;
 int N = 0; // переменная для перехода между Vmax Vmin t1
+
 eEncoderState GetEncoderState() {
   // Считываем состояние энкодера
   eEncoderState Result = eNone;
@@ -51,14 +56,8 @@ eEncoderState GetEncoderState() {
 
 //****************************************************************************************
 
-#include <Wire.h>
-
-#include <LiquidCrystal_PCF8574.h>//  библиотека для двухстрочного экрана
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
-//LiquidCrystal_PCF8574 lcd(0x27);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
-
-#include <Thread.h>  // подключение библиотеки ArduinoThread многопоточность
 
 const int soundPin = 9;  // шагового двигателя
 
@@ -133,7 +132,9 @@ void setup() {
 
 void loop() {
 // Проверим, пришло ли время переключиться светодиоду:
-
+    butt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться //1811
+    if (butt1.isSingle()) {Flag_knopka=true;  digitalWrite(A2, LOW); Serial.println("Single"); } //1811
+    
     if (ledThread.shouldRun())
         ledThread.run(); // запускаем поток
     
@@ -144,9 +145,6 @@ void loop() {
     // Проверим, пришло ли время помигать курсором:
     if (blinkThread.shouldRun())
         blinkThread.run(); // запускаем поток
-   
-    butt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться
-    if (butt1.isSingle()) {Flag_knopka=true;  digitalWrite(A2, LOW); Serial.println("Single"); }
     
     switch (GetEncoderState()) {
     case eNone: return;
@@ -256,7 +254,8 @@ void loop() {
 
 // Поток светодиода:
 void ledBlink() { 
-    
+   
+  
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(ledPin, ledStatus);  // включаем/выключаем светодиод
@@ -421,14 +420,15 @@ void sound() {
       if (t2>=t3) {
       Flag=true;  //температура теплоносителя нагрелась до t3 градусов .было 50 градусов
      } 
-     if   (Flag_knopka==true){ //1811
+     if (Flag_knopka==true) {// если кнопка ПУСКА нажата
      if (t2<t1-GST) {  //  если температура текущая меньше температуры, установленной пользователем
         int motorSpeed = y*koof; //включается максимальная скорость ШД
         int ton = motorSpeed; 
        // tone(soundPin, ton); 
        tone(9, ton); 
          }
-     
+     }
+      if (Flag_knopka==true) {// если кнопка ПУСКА нажата
      if (t2>=t1+GST) { //если температура текущая больше или равно температуры, установленной пользователем
         int motorSpeed = x*koof; //включается минимальная скорость ШД
         int ton = motorSpeed;  
@@ -442,6 +442,8 @@ void sound() {
      Serial.println(t2);
      } 
      }
+          
+      
      if ((t2<1) || (t2>101)) { 
       asm("JMP 0");  
      }
