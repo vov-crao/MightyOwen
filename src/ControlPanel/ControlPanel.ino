@@ -446,14 +446,14 @@ void sound() {
      }
      if (t2>0 && t2<101) {
      if ((t2>=T_max_avar && Flag==true) || (t2<=T_min_avar && Flag==true )|| (flame_detected == 1 && Flag==true /* && Dpl==true */))  {
-     exit(0);
+//     exit(0);
      Serial.println(t2);
      } 
      }
           
       
      if ((t2<1) || (t2>101)) { 
-      asm("JMP 0");  
+//      asm("JMP 0");  
      }
    // if (ton <= 500) {  // до частоты 500 Гц 
    //     ton += 100;  // увеличиваем тональность сирены
