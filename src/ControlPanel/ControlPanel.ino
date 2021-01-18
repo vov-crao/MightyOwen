@@ -127,6 +127,10 @@ void setup() {
     soundThread.onRun(sound);     // назначаем потоку задачу
     soundThread.setInterval(150); // задаём интервал срабатывания, мсек
 
+    // Disable soft interrupts on all pins.
+    PCMSK2 = 0;
+    PCMSK1 = 0;
+    PCMSK0 = 0;
    
 }
 
