@@ -76,7 +76,7 @@ int T_max_avar =EEPROM.read(3);//85 ;  // температура отключе�
 int T_min_avar =EEPROM.read(4);//45 ;  // температура отключения мотора нижняя
 int t3=EEPROM.read(5);//50 ;  // температура включения защиты
 int GST = EEPROM.read(6);//1 ;  // Гистерезис терморегулятора
-byte Dpl = EEPROM.read(7);  // 0-датчик пламени выключен/1-датчик пламени включен
+//byte Dpl = EEPROM.read(7);  // 0-датчик пламени выключен/1-датчик пламени включен
 bool Flag_knopka=false; //кнопка ПУСК
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
@@ -242,11 +242,13 @@ void loop() {
         GST=counter;
         EEPROM.write(6, GST); // запись числo GST в ячейку 6
     }
+/*    
      if (N==8){
         Dpl=counter;
         EEPROM.write(7, Dpl); // запись числo GST в ячейку 7
     }
-     if (N==9) N=0; 
+*/    
+     if (N==8) N=0; 
    //*********************************************************
    
    //*******************************************************
@@ -364,6 +366,7 @@ void sound() {
       else {
       lcd.print(GST);
       } 
+/*      
       lcd.setCursor(17,2);  
       lcd.print("Dpl");
       lcd.setCursor(18,3); 
@@ -376,6 +379,7 @@ void sound() {
       else {
       lcd.print(Dpl);
       } 
+*/      
    //   }
     
   //  int sensorReading2 = analogRead(A3);//измерение значения потенциометра А1 мак.скорость
@@ -437,7 +441,7 @@ void sound() {
      }
      }
      if (t2>0 && t2<101) {
-     if ((t2>=T_max_avar && Flag==true) || (t2<=T_min_avar && Flag==true )|| (flame_detected == 1 && Flag==true && Dpl==true))  {
+     if ((t2>=T_max_avar && Flag==true) || (t2<=T_min_avar && Flag==true )|| (flame_detected == 1 && Flag==true /* && Dpl==true */))  {
      exit(0);
      Serial.println(t2);
      } 
