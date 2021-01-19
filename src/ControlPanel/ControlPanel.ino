@@ -8,8 +8,11 @@
 #include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
 //#include <LiquidCrystalRus.h>
 
-#include <OneWire.h>
-OneWire  ds(12);  //
+#include "tempDS18B20.h"
+ds18b20 TempWater(12);
+
+//#include <OneWire.h>
+//OneWire  ds(12);  //
 
 #define pin_CLK 2
 #define pin_DT  3
@@ -77,6 +80,7 @@ int t3=EEPROM.read(5);//50 ;  // температура включения за�
 int GST = EEPROM.read(6);//1 ;  // Гистерезис терморегулятора
 //byte Dpl = EEPROM.read(7);  // 0-датчик пламени выключен/1-датчик пламени включен
 bool StartButtonPressed = false; //кнопка ПУСК
+uint8_t CRC_last = 0;
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
 Thread soundThread = Thread(); // создаём поток управления 
@@ -93,6 +97,9 @@ void setup() {
    
    pinMode(flame_sensor, INPUT);//инициализация датчик поамени
 // Создаем новый символ.
+
+  t2 = TempWater.getTemp();
+/*  
    byte data[2];           // объявляем массив из 2-х байт
   ds.reset();             // инициализируем датчик
   ds.write(0xCC);         // пропускаем адресацию к конкретному датчику (у нас он один)
@@ -108,7 +115,7 @@ void setup() {
   Temp = Temp >> 4;                     // к нужному виду.
   Serial.println(Temp);                 // выводим результат в последовательный порт.
      t2 = Temp+1;//прибавляем к температуре датчика +1
-  
+ */ 
   pinMode(2,  INPUT);
   pinMode(3, INPUT);
   pinMode(4, INPUT_PULLUP); // Кнопка не подтянута к +5 поэтому задействуем внутренний pull-up резистор
@@ -269,15 +276,25 @@ void loop() {
    //*******************************************************
 }
 
+//*******************************************************
+void readTemperature_ds18b20()
+{
+
+  
+}
+
 // Поток светодиода:
+//*******************************************************
 void ledBlink() { 
    
   
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(ledPin, ledStatus);  // включаем/выключаем светодиод
-  
-    byte data[2];           // объявляем массив из 2-х байт
+
+    t2 = TempWater.getTemp();
+/*
+    byte data[9];           // объявляем массив из 2-х байт
   ds.reset();             // инициализируем датчик
   ds.write(0xCC);         // пропускаем адресацию к конкретному датчику (у нас он один)
   ds.write(0x44);         // даем команду измерять температуру
@@ -286,13 +303,22 @@ void ledBlink() {
   ds.reset();            // снова инициализируем датчик
   ds.write(0xCC);        // снова пропускаем адресацию
   ds.write(0xBE);         // даем команду готовности считывать температуру
+
+#define CRC_CHECK 1
+
+#if CRC_CHECK
+  ds.read_bytes(data, 9);
+  uint8_t CRC = ds.crc8(data, 8);
+#else  
   data[0] = ds.read();    //считываем  младший
   data[1] = ds.read();    // и старший байты
+#endif
+  
   int Temp = (data[1] << 8) + data[0];  // преобразуем считанную информацию
   Temp = Temp >> 4;                     // к нужному виду.
   Serial.println(Temp);                 // выводим результат в последовательный порт.
      t2 = Temp+1;//прибавляем к температуре датчика +1
-   
+*/   
   // выводим результат в последовательный порт.
  //    Serial.print("t2=");
   //   Serial.println(t2);
@@ -302,7 +328,27 @@ void ledBlink() {
     lcd.print("t2=     ");
     lcd.setCursor(16,1);  
     lcd.print(t2);
-   
+
+
+   #if CRC_CHECK
+    // CRC
+    if (CRC_last != CRC)
+    {
+    lcd.setCursor(0,2);  
+    lcd.print("crc=     ");
+    lcd.setCursor(4,2);  
+    lcd.print(CRC);
+
+    lcd.setCursor(10,2);  
+    lcd.print("m9 =     ");
+    lcd.setCursor(14,2);  
+    lcd.print(data[8]);
+
+    CRC_last = CRC;
+    }
+    
+    #endif
+
     flame_detected = digitalRead(flame_sensor);
     if (flame_detected == 1) // нет огня
   {
@@ -344,8 +390,10 @@ void sound() {
       lcd.print(T_max_avar);
       }
                    
+#if !CRC_CHECK
       lcd.setCursor(5,2);  
       lcd.print("Tmin");
+#endif      
       lcd.setCursor(6,3);  
       lcd.print("    ");
       lcd.setCursor(6,3); 
@@ -356,8 +404,10 @@ void sound() {
       else {
       lcd.print(T_min_avar);
       }
+#if !CRC_CHECK
       lcd.setCursor(10,2);  
       lcd.print("t3");
+#endif      
       lcd.setCursor(10,3);  
       lcd.print("   ");
       lcd.setCursor(10,3);  
@@ -369,8 +419,10 @@ void sound() {
       lcd.print(t3);
       }
      
+#if !CRC_CHECK
       lcd.setCursor(13,2);  
       lcd.print("Gst");
+#endif      
       lcd.setCursor(14,3); 
       lcd.print("   "); 
       lcd.setCursor(14,3); 
