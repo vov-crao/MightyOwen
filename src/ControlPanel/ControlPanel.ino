@@ -2,9 +2,8 @@
 #include <Thread.h>
 //#include <ThreadController.h>
 
-#include "GyverButton.h" // библиотека подключения кнопки 1811
-#define PIN 14        //кнопка подключена сюда (PIN --- КНОПКА --- GND)1811
-GButton butt1(PIN); //1811
+// Start button
+#define START_BUTTON_PIN 11
 
 #include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
 //#include <LiquidCrystalRus.h>
@@ -77,16 +76,21 @@ int T_min_avar =EEPROM.read(4);//45 ;  // температура отключе�
 int t3=EEPROM.read(5);//50 ;  // температура включения защиты
 int GST = EEPROM.read(6);//1 ;  // Гистерезис терморегулятора
 //byte Dpl = EEPROM.read(7);  // 0-датчик пламени выключен/1-датчик пламени включен
-bool Flag_knopka=false; //кнопка ПУСК
+bool StartButtonPressed = false; //кнопка ПУСК
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
 Thread soundThread = Thread(); // создаём поток управления 
 Thread blinkThread = Thread(); // создаём поток мигания курсором
 
 void setup() {
-   pinMode(A2, OUTPUT);//1811
-    if (Flag_knopka==false) digitalWrite(A2, HIGH);//1811
-  
+    pinMode(A2, OUTPUT);
+    if (!StartButtonPressed) 
+      digitalWrite(A2, HIGH);
+
+    // Start button.
+    pinMode(START_BUTTON_PIN, INPUT);
+    digitalWrite(START_BUTTON_PIN, HIGH); // use pull up resistor
+   
    pinMode(flame_sensor, INPUT);//инициализация датчик поамени
 // Создаем новый символ.
    byte data[2];           // объявляем массив из 2-х байт
@@ -135,9 +139,13 @@ void setup() {
 }
 
 void loop() {
-// Проверим, пришло ли время переключиться светодиоду:
-    butt1.tick();  // обязательная функция отработки. Должна постоянно опрашиваться //1811
-    if (butt1.isSingle()) {Flag_knopka=true;  digitalWrite(A2, LOW); Serial.println("Single"); } //1811
+    // Start button pressed
+    if (!StartButtonPressed && digitalRead(START_BUTTON_PIN) == LOW) 
+    {
+      StartButtonPressed = true;  
+      digitalWrite(A2, LOW); 
+      Serial.println("Start button pressed"); 
+    }
     
     if (ledThread.shouldRun())
         ledThread.run(); // запускаем поток
@@ -252,7 +260,10 @@ void loop() {
         EEPROM.write(7, Dpl); // запись числo GST в ячейку 7
     }
 */    
-     if (N==8) N=0; 
+     if (N==8) 
+     {
+      N=0; 
+     }
    //*********************************************************
    
    //*******************************************************
@@ -428,15 +439,16 @@ void sound() {
       if (t2>=t3) {
       Flag=true;  //температура теплоносителя нагрелась до t3 градусов .было 50 градусов
      } 
-     if (Flag_knopka==true) {// если кнопка ПУСКА нажата
+     
+     if (StartButtonPressed) 
+     {// если кнопка ПУСКА нажата
      if (t2<t1-GST) {  //  если температура текущая меньше температуры, установленной пользователем
         int motorSpeed = y*koof; //включается максимальная скорость ШД
         int ton = motorSpeed; 
        // tone(soundPin, ton); 
        tone(9, ton); 
          }
-     }
-      if (Flag_knopka==true) {// если кнопка ПУСКА нажата
+     
      if (t2>=t1+GST) { //если температура текущая больше или равно температуры, установленной пользователем
         int motorSpeed = x*koof; //включается минимальная скорость ШД
         int ton = motorSpeed;  
@@ -444,6 +456,7 @@ void sound() {
       //  Flag = true; // температура теплоносителя нагрелась до установленой пользователем температуры t1   
      }
      }
+     
      if (t2>0 && t2<101) {
      if ((t2>=T_max_avar && Flag==true) || (t2<=T_min_avar && Flag==true )|| (flame_detected == 1 && Flag==true /* && Dpl==true */))  {
 //     exit(0);
