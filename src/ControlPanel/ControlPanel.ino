@@ -5,6 +5,9 @@
 // Start button
 #define START_BUTTON_PIN 11
 
+// Start LED
+#define START_LED_PIN A2
+
 #include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
 //#include <LiquidCrystalRus.h>
 
@@ -86,10 +89,12 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 Thread blinkThread = Thread(); // создаём поток мигания курсором
 
-void setup() {
-    pinMode(A2, OUTPUT);
-    if (!StartButtonPressed) 
-      digitalWrite(A2, HIGH);
+void setup() 
+{
+  // Start LED
+  pinMode(START_LED_PIN, OUTPUT);
+  if (!StartButtonPressed) 
+    digitalWrite(START_LED_PIN, HIGH);
 
     // Start button.
     pinMode(START_BUTTON_PIN, INPUT);
@@ -150,7 +155,8 @@ void loop() {
     if (!StartButtonPressed && digitalRead(START_BUTTON_PIN) == LOW) 
     {
       StartButtonPressed = true;  
-      digitalWrite(A2, LOW); 
+      // Start LED off
+      digitalWrite(START_LED_PIN, LOW); 
       Serial.println("Start button pressed"); 
     }
     
