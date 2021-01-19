@@ -30,6 +30,7 @@ byte EncoderA, EncoderB, EncoderAPrev,counter;
 bool ButtonPrev;
 int N = 0; // переменная для перехода между Vmax Vmin t1
 
+/*********************************************************************/
 eEncoderState GetEncoderState() {
   // Считываем состояние энкодера
   eEncoderState Result = eNone;
@@ -89,6 +90,100 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 Thread blinkThread = Thread(); // создаём поток мигания курсором
 
+#include <avr/interrupt.h>  
+#include <avr/io.h>
+#include <util/atomic.h>
+
+bool pin2_prev = digitalRead(2);
+bool pin3_prev = digitalRead(3);
+bool pin4_prev = digitalRead(4);
+
+volatile int8_t rotateTicks = 0;
+
+/*********************************************************************/
+ISR(PCINT2_vect )
+{
+  // A
+  const bool pin2 = digitalRead(2) != LOW;
+  const bool pin3 = digitalRead(3) != LOW;
+
+  if (pin2 != pin2_prev)
+  {
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+      if (pin2 == pin3)
+        rotateTicks--; // if A changed twice - we returns back without affecting B
+      else
+        rotateTicks++;
+    }
+    
+    pin2_prev = pin2;
+  }
+
+  // B
+  if (pin3 != pin3_prev)
+  {
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+      if (pin2 == pin3)
+        rotateTicks++; 
+      else
+        rotateTicks--;
+    }
+      
+    pin3_prev = pin3;
+  }
+
+  // Correct ticks if any inconsistency
+  if (pin2 == pin3)
+  {
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+      rotateTicks &= ~1;
+    }
+  }
+}
+
+/*********************************************************************/
+eEncoderState GetEncoderStateISR() 
+{
+  eEncoderState Result = eNone;
+
+  if (digitalRead(4) == LOW) 
+  {
+    if (ButtonPrev) 
+    {
+        Result = eButton;
+        ButtonPrev = 0;
+        N++;
+    }
+  }
+  else 
+  {
+    ButtonPrev = 1;
+
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+      if ((rotateTicks & 0x3) == 0)
+      {
+        if (rotateTicks < 0)
+        {
+          Result = eLeft;
+          rotateTicks += 4;
+        }
+        else if (rotateTicks > 0)
+        {
+          Result = eRight;
+          rotateTicks -= 4;
+        }
+      }
+    }
+  }
+    
+  return Result;
+}
+
+/*********************************************************************/
 void setup() 
 {
   // Start LED
@@ -121,8 +216,8 @@ void setup()
   Serial.println(Temp);                 // выводим результат в последовательный порт.
      t2 = Temp+1;//прибавляем к температуре датчика +1
  */ 
-  pinMode(2,  INPUT);
-  pinMode(3, INPUT);
+  pinMode(2, INPUT); // PCINT18
+  pinMode(3, INPUT);  // PCINT19
   pinMode(4, INPUT_PULLUP); // Кнопка не подтянута к +5 поэтому задействуем внутренний pull-up резистор
 
   Serial.begin(9600);
@@ -147,9 +242,13 @@ void setup()
     PCMSK2 = 0;
     PCMSK1 = 0;
     PCMSK0 = 0;
-   
+
+    // pin change interrupt 2 is enabled 
+    PCICR |= (1 << PCIE2);
+    PCMSK2 = (1<<PCINT19) | (1<<PCINT18); // Encoder left/right buttons
 }
 
+/*********************************************************************/
 void loop() {
     // Start button pressed
     if (!StartButtonPressed && digitalRead(START_BUTTON_PIN) == LOW) 
@@ -171,7 +270,9 @@ void loop() {
     if (blinkThread.shouldRun())
         blinkThread.run(); // запускаем поток
     
-    switch (GetEncoderState()) {
+//    switch (GetEncoderState()) {
+  switch (GetEncoderStateISR()) 
+  {
     case eNone: return;
     case eLeft: {   // Энкодер вращается влево
         counter--;
@@ -290,7 +391,7 @@ void readTemperature_ds18b20()
 }
 
 // Поток светодиода:
-//*******************************************************
+/*********************************************************************/
 void ledBlink() { 
    
   
@@ -334,26 +435,6 @@ void ledBlink() {
     lcd.print("t2=     ");
     lcd.setCursor(16,1);  
     lcd.print(t2);
-
-
-   #if CRC_CHECK
-    // CRC
-    if (CRC_last != CRC)
-    {
-    lcd.setCursor(0,2);  
-    lcd.print("crc=     ");
-    lcd.setCursor(4,2);  
-    lcd.print(CRC);
-
-    lcd.setCursor(10,2);  
-    lcd.print("m9 =     ");
-    lcd.setCursor(14,2);  
-    lcd.print(data[8]);
-
-    CRC_last = CRC;
-    }
-    
-    #endif
 
     flame_detected = digitalRead(flame_sensor);
     if (flame_detected == 1) // нет огня
