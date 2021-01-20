@@ -15,9 +15,10 @@
 ds18b20 TempWater(12);
 ds18b20 TempExOut(10);
 
-#define pin_CLK 2
-#define pin_DT  3
-#define pin_Btn 4
+// Encoder buttons on pins
+#define ENCODER_A_PIN 4
+#define ENCODER_B_PIN 5
+#define ENCODER_C_PIN 6
 
 unsigned long CurrentTime, LastTime;
 enum eEncoderState {eNone, eLeft, eRight, eButton};
@@ -33,7 +34,7 @@ eEncoderState GetEncoderState() {
   if (CurrentTime - LastTime >= 5) {
     // Считываем не чаще 1 раза в 5 мс для уменьшения ложных срабатываний
     LastTime = CurrentTime;
-    if (digitalRead(4) == LOW ) {  //  if (digitalRead(pin_Btn) == LOW ) 
+    if (digitalRead(ENCODER_C_PIN) == LOW ) {
       if (ButtonPrev) {
         Result = eButton; // Нажата кнопка
         ButtonPrev = 0;
@@ -42,8 +43,8 @@ eEncoderState GetEncoderState() {
     }
     else {
       ButtonPrev = 1;
-      EncoderA = digitalRead(2);// EncoderA = digitalRead(pin_DT)
-      EncoderB = digitalRead(3);//EncoderB = digitalRead(pin_CLK);
+      EncoderA = digitalRead(ENCODER_A_PIN);
+      EncoderB = digitalRead(ENCODER_B_PIN);
       if ((!EncoderA) && (EncoderAPrev)) { // Сигнал A изменился с 1 на 0
         if (EncoderB) Result = eRight;     // B=1 => энкодер вращается по часовой
         else          Result = eLeft;      // B=0 => энкодер вращается против часовой
@@ -84,13 +85,18 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 Thread blinkThread = Thread(); // создаём поток мигания курсором
 
+/* Pin to interrupt map:
+* D0-D7 = PCINT 16-23 = PCIR2 = PD = PCIE2 = pcmsk2
+* D8-D13 = PCINT 0-5 = PCIR0 = PB = PCIE0 = pcmsk0
+* A0-A5 (D14-D19) = PCINT 8-13 = PCIR1 = PC = PCIE1 = pcmsk1
+*/
+
 #include <avr/interrupt.h>  
 #include <avr/io.h>
 #include <util/atomic.h>
 
-bool pin2_prev = digitalRead(2);
-bool pin3_prev = digitalRead(3);
-bool pin4_prev = digitalRead(4);
+bool pinA_prev = digitalRead(ENCODER_A_PIN);
+bool pinB_prev = digitalRead(ENCODER_B_PIN);
 
 volatile int8_t rotateTicks = 0;
 
@@ -98,38 +104,38 @@ volatile int8_t rotateTicks = 0;
 ISR(PCINT2_vect )
 {
   // A
-  const bool pin2 = digitalRead(2) != LOW;
-  const bool pin3 = digitalRead(3) != LOW;
+  const bool pinA = digitalRead(ENCODER_A_PIN) != LOW;
+  const bool pinB = digitalRead(ENCODER_B_PIN) != LOW;
 
-  if (pin2 != pin2_prev)
+  if (pinA != pinA_prev)
   {
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
     {
-      if (pin2 == pin3)
+      if (pinA == pinB)
         rotateTicks--; // if A changed twice - we returns back without affecting B
       else
         rotateTicks++;
     }
     
-    pin2_prev = pin2;
+    pinA_prev = pinA;
   }
 
   // B
-  if (pin3 != pin3_prev)
+  if (pinB != pinB_prev)
   {
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
     {
-      if (pin2 == pin3)
+      if (pinA == pinB)
         rotateTicks++; 
       else
         rotateTicks--;
     }
       
-    pin3_prev = pin3;
+    pinB_prev = pinB;
   }
 
   // Correct ticks if any inconsistency
-  if (pin2 == pin3)
+  if (pinA == pinB)
   {
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
     {
@@ -143,7 +149,7 @@ eEncoderState GetEncoderStateISR()
 {
   eEncoderState Result = eNone;
 
-  if (digitalRead(4) == LOW) 
+  if (digitalRead(ENCODER_C_PIN) == LOW) 
   {
     if (ButtonPrev) 
     {
@@ -192,10 +198,6 @@ void setup()
   t2 = TempWater.getTemp();
   tout = TempExOut.getTemp();
 
-  pinMode(2, INPUT); // PCINT18
-  pinMode(3, INPUT);  // PCINT19
-  pinMode(4, INPUT_PULLUP); // Кнопка не подтянута к +5 поэтому задействуем внутренний pull-up резистор
-
   Wire.begin();//Инициализирует библиотеку Wire и подключается к шине I2C как ведущий (мастер) или ведомый.
   Wire.beginTransmission(0x27);
   lcd.begin(20, 4); // initialize the lcd
@@ -212,6 +214,11 @@ void setup()
     soundThread.onRun(sound);     // назначаем потоку задачу
     soundThread.setInterval(150); // задаём интервал срабатывания, мсек
 
+    // Encoder pins
+    pinMode(ENCODER_A_PIN, INPUT); // PCINT18
+    pinMode(ENCODER_B_PIN, INPUT);  // PCINT19
+    pinMode(ENCODER_C_PIN, INPUT_PULLUP); // Кнопка не подтянута к +5 поэтому задействуем внутренний pull-up резистор
+
     // Disable soft interrupts on all pins.
     PCMSK2 = 0;
     PCMSK1 = 0;
@@ -219,7 +226,8 @@ void setup()
 
     // pin change interrupt 2 is enabled 
     PCICR |= (1 << PCIE2);
-    PCMSK2 = (1<<PCINT19) | (1<<PCINT18); // Encoder left/right buttons
+    ///TODO: Add detecting PCINT numbers from pins
+    PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
 }
 
 /*********************************************************************/
