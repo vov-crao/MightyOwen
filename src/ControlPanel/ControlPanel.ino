@@ -20,11 +20,21 @@ ds18b20 TempExOut(10);
 #define ENCODER_B_PIN 5
 #define ENCODER_C_PIN 6
 
+const byte STORE_FUEL_SPEED_MAX  = 0;
+const byte STORE_FUEL_SPEED_MIN  = 1;
+const byte STORE_TARGET_TEMP     = 2;
+const byte STORE_MOTOR_MAX       = 3;
+const byte STORE_MOTOR_MIN       = 4;
+const byte STORE_TEMP_MAX        = 5;
+const byte STORE_TEMP_GIST       = 6;
+const byte STORE_INDEX_MAX       = 7;
+
 unsigned long CurrentTime, LastTime;
 enum eEncoderState {eNone, eLeft, eRight, eButton};
 byte EncoderA, EncoderB, EncoderAPrev,counter;
 bool ButtonPrev;
-int N = 0; // переменная для перехода между Vmax Vmin t1
+
+byte VarIndex = STORE_INDEX_MAX;
 
 //****************************************************************************************
 
@@ -125,7 +135,6 @@ eEncoderState GetEncoderStateISR()
     {
         Result = eButton;
         ButtonPrev = 0;
-        N++;
     }
   }
   else 
@@ -200,8 +209,77 @@ void setup()
     PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
 }
 
+byte StoreCurrentValue = 0;
+
 /*********************************************************************/
-void loop() {
+void CheckLimitStoreVar()
+{
+  if (StoreCurrentValue < 1)
+  {
+    StoreCurrentValue = 1;
+    return;
+  }
+  
+  switch(VarIndex)
+  {
+    case STORE_FUEL_SPEED_MAX: 
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, EEPROM.read(STORE_FUEL_SPEED_MIN)+1, 110);
+        break;
+      }
+    case STORE_FUEL_SPEED_MIN:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 10, EEPROM.read(STORE_FUEL_SPEED_MAX)-1);
+        break;
+      }
+    case STORE_TARGET_TEMP:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 10, 95);
+        break;
+      }
+    case STORE_MOTOR_MAX:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 25, 95);
+        break;
+      }
+    case STORE_MOTOR_MIN:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 25, 95);
+        break;
+      }
+    case STORE_TEMP_MAX:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 25, 95);
+        break;
+      }
+    case STORE_TEMP_GIST:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, 1, 10);
+        break;
+      }
+    default: break;
+  }
+}
+
+/*********************************************************************/
+void UpdateVarWithStoreVar()
+{
+  switch(VarIndex)
+  {
+    case STORE_FUEL_SPEED_MAX:  y = StoreCurrentValue; break;
+    case STORE_FUEL_SPEED_MIN:  x = StoreCurrentValue; break;
+    case STORE_TARGET_TEMP:     t1 = StoreCurrentValue; break;
+    case STORE_MOTOR_MAX:       T_max_avar = StoreCurrentValue; break;
+    case STORE_MOTOR_MIN:       T_min_avar = StoreCurrentValue; break;
+    case STORE_TEMP_MAX:        t3 = StoreCurrentValue; break;
+    case STORE_TEMP_GIST:       GST = StoreCurrentValue; break;
+    default: break;
+  }
+}
+
+/*********************************************************************/
+void loop() 
+{
     // Start button pressed
     if (!StartButtonPressed && digitalRead(START_BUTTON_PIN) == LOW) 
     {
@@ -222,108 +300,72 @@ void loop() {
     if (blinkThread.shouldRun())
         blinkThread.run(); // запускаем поток
     
-//    switch (GetEncoderState()) {
   switch (GetEncoderStateISR()) 
   {
     case eNone: return;
-    case eLeft: {   // Энкодер вращается влево
-        counter--;
-         if (counter<1 && N!=8) counter++; 
-         if (N==6  && counter<25) counter++; //ограничиваем температуру t3 -срабатывание защиты  
-         if (N==8  && counter>254) counter++; //ограничиваем температуру t3 -срабатывание защиты                                                                                                                                                                                                        ) counter++; //ограничиваем температуру t3 -срабатывание защиты  
+    
+    case eLeft: 
+      {
+        StoreCurrentValue--;
+        Serial.print("Left turn:"); 
+        Serial.println(StoreCurrentValue, 10); 
+
+        CheckLimitStoreVar();
         break;
       }
-    case eRight:  {  // 1 и 2 Энкодеры вращается вправо
-        
-       counter++;
-     
-       if (N==3  && counter>95) counter--; //t1-ограничиваем рабочую температуру
-       if (N==4  && counter>95) counter--; //T_max_avar -ограничиваем
-       if (N==6  && counter>90) counter--; //ограничиваем температуру t3 -срабатывание защиты  
       
-       if (N==7  && counter>10) counter--; // ограничим ввод гистерезиса 10*/
-       if (N==8  && counter>1) counter--; // ограничим ввод пламени 1/
-      if (counter>110) counter--; 
-         break;
-    }
-       
-    case eButton: { // Нажали кнопку
-       
-       switch (N) {
-  case 1:
-    //выполняется, когда N равно 1
-   counter=EEPROM.read(0);
-       break;
-  case 2:
-    //выполняется когда  N равно 2
-    counter=EEPROM.read(1); 
-    break;
-  case 3:
-    //выполняется когда  N равно 3
-    counter=EEPROM.read(2); 
-    break;
- 
-  case 4:
-    //выполняется, когда M равно 1
-   counter=EEPROM.read(3); 
-    break;
-  case 5:
-    //выполняется когда  M равно 2
-    counter=EEPROM.read(4); 
-    break;
-  case 6:
-    //выполняется когда  M равно 3
-    counter=EEPROM.read(5); 
-    break;
-  case 7:
-    //выполняется когда  M равно 4
-    counter=EEPROM.read(6); 
-    break;
-  case 8:
-    //выполняется когда  M равно 8
-    counter=EEPROM.read(7); 
-    break;
- }
+    case eRight:  
+      {
+        StoreCurrentValue++;
+
+        Serial.print("Right turn:"); 
+        Serial.println(StoreCurrentValue, 10); 
+
+        CheckLimitStoreVar();
         break;
-    }
+      }
+
+    // Pressed Encoder button
+    case eButton: 
+      {
+        Serial.print("Knob pressed. Old index:"); 
+        Serial.print(VarIndex, 10); 
+        
+        // Store prev updated value
+        if (VarIndex < STORE_INDEX_MAX)
+        {
+          const byte OldValue = EEPROM.read(VarIndex);
+          Serial.print(" Old value:"); 
+          Serial.print(OldValue, 10); 
+          if (StoreCurrentValue != OldValue)
+          {
+            Serial.print(" Write new value:"); 
+            Serial.print(StoreCurrentValue, 10); 
+            
+            EEPROM.write(VarIndex, StoreCurrentValue);
+          }
+        }
+
+        Serial.println();
+        
+        ++VarIndex;
+
+        if (VarIndex > STORE_INDEX_MAX)
+          VarIndex = 0;
+        
+        Serial.print(" New index:"); 
+        Serial.println(VarIndex, 10); 
+
+        if (VarIndex < STORE_INDEX_MAX)
+        {
+          Serial.print(" ee value:"); 
+          StoreCurrentValue = EEPROM.read(VarIndex);
+          Serial.println(StoreCurrentValue, 10); 
+        }
+      }
   }
-  Serial.println(counter);
- //Serial.print(N);
-    if (N==1){
-             
-              y=counter;
-              EEPROM.write(0, y); // запись числo y=Vmax в ячейку 0
-             
-    }
-   if (N==2){
-        x=counter;
-        EEPROM.write(1, x); // запись числo x=Vmin в ячейку 1
-    }
-    if (N==3){
-        t1=counter;
-        EEPROM.write(2, t1); // запись числo t1 в ячейку 2
-    }
-    
-   if (N==4){
-       T_max_avar=counter;
-       EEPROM.write(3, T_max_avar); // запись числа в ячейку 3
-    }
-   if (N==5){
-        T_min_avar=counter;
-        EEPROM.write(4, T_min_avar); // запись числа в ячейку 4
-    }
-    if (N==6){
-        t3=counter;
-        EEPROM.write(5, t3); // запись числo t3 в ячейку 5
-    }
-    if (N==7){
-        GST=counter;
-        EEPROM.write(6, GST); // запись числo GST в ячейку 6
-    }
-    if (N==8) 
-    {
-      N=0; 
-    }
+
+  UpdateVarWithStoreVar();
 }
 
 // Поток светодиода:
@@ -354,103 +396,73 @@ void ledBlink() {
 }
 // Поток мигания курсором:
 
- // Поток сирены:
-void sound() { 
-   
-  //  int sensorReading = analogRead(A0);//измерение значения потенциометра А0 мин.скорость
-    // map it to a range from 0 to 100:
-      
-   // int x = value;
-    //  if (M>0) {
-         
-      lcd.setCursor(0,2);
-      lcd.print("Tmax");
-      lcd.setCursor(1,3); 
-      lcd.print("    "); 
-      lcd.setCursor(1,3); 
-      if (N==4) {
-       lcd.print(T_max_avar);
-       lcd.print("<");    
-      }
-      else {
-      lcd.print(T_max_avar);
-      }
-                   
-      lcd.setCursor(5,2);  
-      lcd.print("Tmin");
-      lcd.setCursor(6,3);  
-      lcd.print("    ");
-      lcd.setCursor(6,3); 
-      if (N==5) {
-       lcd.print(T_min_avar);
-       lcd.print("<");    
-      }
-      else {
-      lcd.print(T_min_avar);
-      }
-      lcd.setCursor(10,2);  
-      lcd.print("t3");
-      lcd.setCursor(10,3);  
-      lcd.print("   ");
-      lcd.setCursor(10,3);  
-      if (N==6) {
-      lcd.print(t3);
+/*********************************************************************/
+void PrintMarker(const byte Index)
+{
+  if (VarIndex == Index) 
+  {
+    if (StoreCurrentValue == EEPROM.read(VarIndex))
       lcd.print("<");    
-      }
-      else {
-      lcd.print(t3);
-      }
+    else
+      lcd.print("*");
+  }
+}
+
+ // Поток сирены:
+/*********************************************************************/
+void sound() 
+{ 
+  lcd.setCursor(0,0);  
+  lcd.print("Vmax=    ");
+  lcd.setCursor(5,0);  
+  lcd.print(y);
+  PrintMarker(STORE_FUEL_SPEED_MAX);
      
-      lcd.setCursor(13,2);  
-      lcd.print("Gst");
-      lcd.setCursor(14,3); 
-      lcd.print("   "); 
-      lcd.setCursor(14,3); 
-       if (N==7) {
-       lcd.print(GST);
-       lcd.print("<");    
-      }
-      else {
-      lcd.print(GST);
-      } 
-    
-     lcd.setCursor(0,0);  
+  lcd.setCursor(0,1); 
+  lcd.print("Vmin=    ");
+  lcd.setCursor(5,1);  
+  lcd.print(x);
+  PrintMarker(STORE_FUEL_SPEED_MIN);
      
-     lcd.print("Vmax=    ");
-     lcd.setCursor(5,0);  
-     if (N==1) {
-     lcd.print(y);
-     lcd.print("<");    
-     }
-     else {
-     lcd.print(y);
-     }
-    
+  lcd.setCursor(13,0);  
+  lcd.print("t1=    ");
+  lcd.setCursor(16,0);  
+  lcd.print(t1);
+  PrintMarker(STORE_TARGET_TEMP);
+
+  lcd.setCursor(0,2);
+  lcd.print("Tmax");
+  lcd.setCursor(1,3); 
+  lcd.print("    "); 
+  lcd.setCursor(1,3); 
+  lcd.print(T_max_avar);
+  PrintMarker(STORE_MOTOR_MAX);
+                   
+  lcd.setCursor(5,2);  
+  lcd.print("Tmin");
+  lcd.setCursor(6,3);  
+  lcd.print("    ");
+  lcd.setCursor(6,3); 
+  lcd.print(T_min_avar);
+  PrintMarker(STORE_MOTOR_MIN);
+      
+  lcd.setCursor(10,2);  
+  lcd.print("t3");
+  lcd.setCursor(10,3);  
+  lcd.print("   ");
+  lcd.setCursor(10,3);  
+  lcd.print(t3);
+  PrintMarker(STORE_TEMP_MAX);
      
-     lcd.setCursor(0,1); 
-     lcd.print("Vmin=    ");
-     lcd.setCursor(5,1);  
-      if (N==2) {
-     lcd.print(x);
-     lcd.print("<"); 
-    // lcd.print("\x7E");    
-     }
-     else {
-     lcd.print(x);
-     }
-     
- //  int sensorReading3 = analogRead(A5);//измерение значения потенциометра А2 задаваемая темп. теплоносителя
- //  int t1 = map(sensorReading3, 0, 1023, 1, 101);   // map it to a range from 0 to 100:
-     lcd.setCursor(13,0);  
-     lcd.print("t1=    ");
-     lcd.setCursor(16,0);  
-     if (N==3) {
-     lcd.print(t1);
-     lcd.print("<");    
-     }
-     else {
-     lcd.print(t1);
-     }
+  lcd.setCursor(13,2);  
+  lcd.print("Gst");
+  lcd.setCursor(14,3); 
+  lcd.print("   "); 
+  lcd.setCursor(14,3); 
+  lcd.print(GST);
+  PrintMarker(STORE_TEMP_GIST);
+
+  
       if (t2>=t3) {
       Flag=true;  //температура теплоносителя нагрелась до t3 градусов .было 50 градусов
      } 
