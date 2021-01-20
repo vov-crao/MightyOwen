@@ -19,9 +19,6 @@ ds18b20 TempExOut(10);
 #define pin_DT  3
 #define pin_Btn 4
 
-int flame_sensor = 7; // датчик пламени
-int flame_detected;   // датчик пламени
-
 unsigned long CurrentTime, LastTime;
 enum eEncoderState {eNone, eLeft, eRight, eButton};
 byte EncoderA, EncoderB, EncoderAPrev,counter;
@@ -192,8 +189,6 @@ void setup()
     pinMode(START_BUTTON_PIN, INPUT);
     digitalWrite(START_BUTTON_PIN, HIGH); // use pull up resistor
    
-   pinMode(flame_sensor, INPUT);//инициализация датчик поамени
-
   t2 = TempWater.getTemp();
   tout = TempExOut.getTemp();
 
@@ -378,16 +373,6 @@ void ledBlink() {
     lcd.print("    ");
     lcd.setCursor(17,3);  
     lcd.print(tout);
-
-    flame_detected = digitalRead(flame_sensor);
-    if (flame_detected == 1) // нет огня
-  {
-    Serial.println("Нет пламени....");
-  }
-  else
-  {
-    Serial.println("Вижу пламя!!!");
-  }
 }
 // Поток мигания курсором:
 
@@ -507,12 +492,5 @@ void sound() {
         tone(9, ton); 
       //  Flag = true; // температура теплоносителя нагрелась до установленой пользователем температуры t1   
      }
-     }
-     
-     if (t2>0 && t2<101) {
-     if ((t2>=T_max_avar && Flag==true) || (t2<=T_min_avar && Flag==true )|| (flame_detected == 1 && Flag==true /* && Dpl==true */))  {
-//     exit(0);
-     Serial.println(t2);
-     } 
      }
 }
