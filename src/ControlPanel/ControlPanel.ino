@@ -13,6 +13,7 @@
 
 #include "tempDS18B20.h"
 ds18b20 TempWater(12);
+ds18b20 TempExOut(10);
 
 //#include <OneWire.h>
 //OneWire  ds(12);  //
@@ -73,6 +74,7 @@ int y=EEPROM.read(0);// скорость максимальная
 int x=EEPROM.read(1); // скорость минимальная 
 int t1=EEPROM.read(2); // выставляемая пользователем температура теплоносителя
 int t2; // температура передаваемая с термодатчика
+int tout;
 int Temp;
 int koof=130; // 
 int motorSpeed=1;
@@ -199,6 +201,7 @@ void setup()
 // Создаем новый символ.
 
   t2 = TempWater.getTemp();
+  tout = TempExOut.getTemp();
 /*  
    byte data[2];           // объявляем массив из 2-х байт
   ds.reset();             // инициализируем датчик
@@ -400,6 +403,7 @@ void ledBlink() {
     digitalWrite(ledPin, ledStatus);  // включаем/выключаем светодиод
 
     t2 = TempWater.getTemp();
+    tout = TempExOut.getTemp();
 /*
     byte data[9];           // объявляем массив из 2-х байт
   ds.reset();             // инициализируем датчик
@@ -431,10 +435,18 @@ void ledBlink() {
   //   Serial.println(t2);
       
     lcd.setBacklight(255);
+
     lcd.setCursor(13,1);  
     lcd.print("t2=     ");
     lcd.setCursor(16,1);  
     lcd.print(t2);
+
+    lcd.setCursor(17,2);  
+    lcd.print("to");
+    lcd.setCursor(17,3);  
+    lcd.print("    ");
+    lcd.setCursor(17,3);  
+    lcd.print(tout);
 
     flame_detected = digitalRead(flame_sensor);
     if (flame_detected == 1) // нет огня
