@@ -1,6 +1,9 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
+#include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
+LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
+
 #include <EEPROM.h>
 
 // Start button
@@ -47,11 +50,8 @@ byte VarIndex = STORE_INDEX_MAX;
 //
 //****************************************************************************************
 
-#include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
-LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
-
-int y = EEPROM.read(STORE_FUEL_SPEED_MAX);// скорость максимальная
-int x = EEPROM.read(STORE_FUEL_SPEED_MIN); // скорость минимальная 
+int motorSpeedMax = EEPROM.read(STORE_FUEL_SPEED_MAX);// скорость максимальная
+int motorSpeedMin = EEPROM.read(STORE_FUEL_SPEED_MIN); // скорость минимальная 
 int t1 = EEPROM.read(STORE_TARGET_TEMP); // выставляемая пользователем температура теплоносителя
 int T_max_avar = EEPROM.read(STORE_MOTOR_MAX);  // температура отключения мотора верхняя
 int T_min_avar = EEPROM.read(STORE_MOTOR_MIN);  // температура отключения мотора нижняя
@@ -271,8 +271,8 @@ void UpdateVarWithStoreVar()
 {
   switch(VarIndex)
   {
-    case STORE_FUEL_SPEED_MAX:  y = StoreCurrentValue; break;
-    case STORE_FUEL_SPEED_MIN:  x = StoreCurrentValue; break;
+    case STORE_FUEL_SPEED_MAX:  motorSpeedMax = StoreCurrentValue; break;
+    case STORE_FUEL_SPEED_MIN:  motorSpeedMin = StoreCurrentValue; break;
     case STORE_TARGET_TEMP:     t1 = StoreCurrentValue; break;
     case STORE_MOTOR_MAX:       T_max_avar = StoreCurrentValue; break;
     case STORE_MOTOR_MIN:       T_min_avar = StoreCurrentValue; break;
@@ -416,13 +416,13 @@ void sound()
   lcd.setCursor(0,0);  
   lcd.print("Vmax=    ");
   lcd.setCursor(5,0);  
-  lcd.print(y);
+  lcd.print(motorSpeedMax);
   PrintMarker(STORE_FUEL_SPEED_MAX);
      
   lcd.setCursor(0,1); 
   lcd.print("Vmin=    ");
   lcd.setCursor(5,1);  
-  lcd.print(x);
+  lcd.print(motorSpeedMin);
   PrintMarker(STORE_FUEL_SPEED_MIN);
      
   lcd.setCursor(13,0);  
@@ -473,13 +473,13 @@ void sound()
   {
     if (t2<t1-GST) 
     {
-      const int motorSpeed = y*koof; //включается максимальная скорость ШД
+      const int motorSpeed = motorSpeedMax*koof; //включается максимальная скорость ШД
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
      
     if (t2>=t1+GST) 
     {
-      const int motorSpeed = x*koof; //включается минимальная скорость ШД
+      const int motorSpeed = motorSpeedMin*koof; //включается минимальная скорость ШД
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
   }
