@@ -53,7 +53,7 @@ int tout;
 int Temp;
 int koof=130; // 
 int motorSpeed=1;
-bool Flag=false; // флаг, обозначающий, что котел еще не нагревался до рабочей температуры ни разу
+bool IsMaxTempReached = false;
 bool blinkStatus = false;    // состояние курсора Вкл/Выкл
 int T_max_avar =EEPROM.read(3);//85 ;  // температура отключения мотора верхняя
 int T_min_avar =EEPROM.read(4);//45 ;  // температура отключения мотора нижняя
@@ -461,26 +461,35 @@ void sound()
   lcd.setCursor(14,3); 
   lcd.print(GST);
   PrintMarker(STORE_TEMP_GIST);
-
   
-      if (t2>=t3) {
-      Flag=true;  //температура теплоносителя нагрелась до t3 градусов .было 50 градусов
-     } 
+  if (t2 >= t3) 
+  {
+    IsMaxTempReached = true;
+    Serial.println("MAX temp!");
+  } 
      
-     if (StartButtonPressed) 
-     {// если кнопка ПУСКА нажата
-     if (t2<t1-GST) {  //  если температура текущая меньше температуры, установленной пользователем
-        int motorSpeed = y*koof; //включается максимальная скорость ШД
-        int ton = motorSpeed; 
-       // tone(soundPin, ton); 
-       tone(9, ton); 
-         }
+  if (StartButtonPressed) 
+  {
+    if (t2<t1-GST) 
+    {
+      const int motorSpeed = y*koof; //включается максимальная скорость ШД
+      tone(9, motorSpeed); 
+    }
      
-     if (t2>=t1+GST) { //если температура текущая больше или равно температуры, установленной пользователем
-        int motorSpeed = x*koof; //включается минимальная скорость ШД
-        int ton = motorSpeed;  
-        tone(9, ton); 
-      //  Flag = true; // температура теплоносителя нагрелась до установленой пользователем температуры t1   
-     }
-     }
+    if (t2>=t1+GST) 
+    {
+      const int motorSpeed = x*koof; //включается минимальная скорость ШД
+      tone(9, motorSpeed); 
+    }
+  }
+
+  if (IsMaxTempReached)
+  {
+    if ((t2 >= T_max_avar) || (t2 <= T_min_avar))  
+    {
+      tone(9, 0); 
+      Serial.println("ALL is BAD!! Emergency EXIT!!");
+      exit(0);
+    } 
+  }
 }
