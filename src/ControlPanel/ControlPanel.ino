@@ -1,23 +1,34 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
+#include <EEPROM.h>
+
 // Start button
 #define START_BUTTON_PIN 11
 
 // Start LED
 #define START_LED_PIN A2
 
-#include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
+// Blinking led
+#define BLINKING_LED_PIN 13
+
+// Temperature sensors pins
+#define WATER_SENSOR_PIN 12
+#define EXHOST_SENSOR_PIN 10
 
 #include "tempDS18B20.h"
-ds18b20 TempWater(12);
-ds18b20 TempExOut(10);
+ds18b20 TempWater(WATER_SENSOR_PIN);
+ds18b20 TempExOut(EXHOST_SENSOR_PIN);
 
 // Encoder buttons on pins
 #define ENCODER_A_PIN 4
 #define ENCODER_B_PIN 5
 #define ENCODER_C_PIN 6
 
+enum eEncoderState {eNone, eLeft, eRight, eButton};
+bool ButtonPrev;
+
+// EEPROM indexes of global variables
 const byte STORE_FUEL_SPEED_MAX  = 0;
 const byte STORE_FUEL_SPEED_MIN  = 1;
 const byte STORE_TARGET_TEMP     = 2;
@@ -27,19 +38,17 @@ const byte STORE_TEMP_MAX        = 5;
 const byte STORE_TEMP_GIST       = 6;
 const byte STORE_INDEX_MAX       = 7;
 
-enum eEncoderState {eNone, eLeft, eRight, eButton};
-bool ButtonPrev;
-
 byte VarIndex = STORE_INDEX_MAX;
 
+// Stepper Motor
+#define STEPPER_MOTOR_PULSE_PIN 9
+#define STEPPER_MOTOR_DIR_PIN   8
+
+//
 //****************************************************************************************
 
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
-
-const int soundPin = 9;  // шагового двигателя
-
-const int ledPin =20 ;  // переменная с номером пина светодиода/экрана
 
 int y = EEPROM.read(STORE_FUEL_SPEED_MAX);// скорость максимальная
 int x = EEPROM.read(STORE_FUEL_SPEED_MIN); // скорость минимальная 
@@ -178,11 +187,10 @@ void setup()
   
   Serial.begin(9600);
   
-  pinMode(8, OUTPUT);      
-  pinMode(9, OUTPUT); 
+  pinMode(STEPPER_MOTOR_DIR_PIN, OUTPUT);      
+  pinMode(STEPPER_MOTOR_PULSE_PIN, OUTPUT); 
   
-  pinMode(ledPin, OUTPUT);   // объявляем пин 13 как выход.
-      
+  pinMode(BLINKING_LED_PIN, OUTPUT);
      
     ledThread.onRun(ledBlink);  // назначаем потоку задачу
     ledThread.setInterval(1000); // задаём интервал срабатывания, мсек
@@ -289,11 +297,9 @@ void loop()
     if (ledThread.shouldRun())
         ledThread.run(); // запускаем поток
     
-    // Проверим, пришло ли время сменить тональность сирены:
     if (soundThread.shouldRun())
         soundThread.run(); // запускаем поток
 
-    // Проверим, пришло ли время помигать курсором:
     if (blinkThread.shouldRun())
         blinkThread.run(); // запускаем поток
     
@@ -367,12 +373,11 @@ void loop()
 
 // Поток светодиода:
 /*********************************************************************/
-void ledBlink() { 
-   
-  
+void ledBlink() 
+{ 
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
-    digitalWrite(ledPin, ledStatus);  // включаем/выключаем светодиод
+    digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
 
     t2 = TempWater.getTemp();
     tout = TempExOut.getTemp();
@@ -391,7 +396,6 @@ void ledBlink() {
     lcd.setCursor(17,3);  
     lcd.print(tout);
 }
-// Поток мигания курсором:
 
 /*********************************************************************/
 void PrintMarker(const byte Index)
@@ -470,13 +474,13 @@ void sound()
     if (t2<t1-GST) 
     {
       const int motorSpeed = y*koof; //включается максимальная скорость ШД
-      tone(9, motorSpeed); 
+      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
      
     if (t2>=t1+GST) 
     {
       const int motorSpeed = x*koof; //включается минимальная скорость ШД
-      tone(9, motorSpeed); 
+      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
   }
 
@@ -484,7 +488,7 @@ void sound()
   {
     if ((t2 >= T_max_avar) || (t2 <= T_min_avar))  
     {
-      tone(9, 0); 
+      tone(STEPPER_MOTOR_PULSE_PIN, 0); 
       Serial.println("ALL is BAD!! Emergency EXIT!!");
       exit(0);
     } 
