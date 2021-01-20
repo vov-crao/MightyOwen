@@ -1,6 +1,5 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
-//#include <ThreadController.h>
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -9,7 +8,6 @@
 #define START_LED_PIN A2
 
 #include <EEPROM.h> // подключаем библиотеку EEPROM для записи в ПЗУ
-//#include <LiquidCrystalRus.h>
 
 #include "tempDS18B20.h"
 ds18b20 TempWater(12);
@@ -29,9 +27,7 @@ const byte STORE_TEMP_MAX        = 5;
 const byte STORE_TEMP_GIST       = 6;
 const byte STORE_INDEX_MAX       = 7;
 
-unsigned long CurrentTime, LastTime;
 enum eEncoderState {eNone, eLeft, eRight, eButton};
-byte EncoderA, EncoderB, EncoderAPrev,counter;
 bool ButtonPrev;
 
 byte VarIndex = STORE_INDEX_MAX;
@@ -45,20 +41,18 @@ const int soundPin = 9;  // шагового двигателя
 
 const int ledPin =20 ;  // переменная с номером пина светодиода/экрана
 
-int y=EEPROM.read(0);// скорость максимальная
-int x=EEPROM.read(1); // скорость минимальная 
-int t1=EEPROM.read(2); // выставляемая пользователем температура теплоносителя
+int y = EEPROM.read(STORE_FUEL_SPEED_MAX);// скорость максимальная
+int x = EEPROM.read(STORE_FUEL_SPEED_MIN); // скорость минимальная 
+int t1 = EEPROM.read(STORE_TARGET_TEMP); // выставляемая пользователем температура теплоносителя
+int T_max_avar = EEPROM.read(STORE_MOTOR_MAX);  // температура отключения мотора верхняя
+int T_min_avar = EEPROM.read(STORE_MOTOR_MIN);  // температура отключения мотора нижняя
+int t3 = EEPROM.read(STORE_TEMP_MAX);           // температура включения защиты
+int GST = EEPROM.read(STORE_TEMP_GIST);         // Гистерезис терморегулятора
+
 int t2; // температура передаваемая с термодатчика
 int tout;
-int Temp;
-int koof=130; // 
-int motorSpeed=1;
+const byte koof = 130;
 bool IsMaxTempReached = false;
-bool blinkStatus = false;    // состояние курсора Вкл/Выкл
-int T_max_avar =EEPROM.read(3);//85 ;  // температура отключения мотора верхняя
-int T_min_avar =EEPROM.read(4);//45 ;  // температура отключения мотора нижняя
-int t3=EEPROM.read(5);//50 ;  // температура включения защиты
-int GST = EEPROM.read(6);//1 ;  // Гистерезис терморегулятора
 bool StartButtonPressed = false; //кнопка ПУСК
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
@@ -179,12 +173,15 @@ void setup()
 
   Wire.begin();//Инициализирует библиотеку Wire и подключается к шине I2C как ведущий (мастер) или ведомый.
   Wire.beginTransmission(0x27);
+  
   lcd.begin(20, 4); // initialize the lcd
-   Serial.begin(9600);
-     // pinMode(soundPin, OUTPUT); // объявляем пин 3 как выход.
-      pinMode(8, OUTPUT);      
-      pinMode(9, OUTPUT); 
-      pinMode(ledPin, OUTPUT);   // объявляем пин 13 как выход.
+  
+  Serial.begin(9600);
+  
+  pinMode(8, OUTPUT);      
+  pinMode(9, OUTPUT); 
+  
+  pinMode(ledPin, OUTPUT);   // объявляем пин 13 как выход.
       
      
     ledThread.onRun(ledBlink);  // назначаем потоку задачу
