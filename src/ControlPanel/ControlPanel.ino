@@ -26,36 +26,6 @@ byte EncoderA, EncoderB, EncoderAPrev,counter;
 bool ButtonPrev;
 int N = 0; // переменная для перехода между Vmax Vmin t1
 
-/*********************************************************************/
-eEncoderState GetEncoderState() {
-  // Считываем состояние энкодера
-  eEncoderState Result = eNone;
-  CurrentTime = millis();
-  if (CurrentTime - LastTime >= 5) {
-    // Считываем не чаще 1 раза в 5 мс для уменьшения ложных срабатываний
-    LastTime = CurrentTime;
-    if (digitalRead(ENCODER_C_PIN) == LOW ) {
-      if (ButtonPrev) {
-        Result = eButton; // Нажата кнопка
-        ButtonPrev = 0;
-        N++;
-       }
-    }
-    else {
-      ButtonPrev = 1;
-      EncoderA = digitalRead(ENCODER_A_PIN);
-      EncoderB = digitalRead(ENCODER_B_PIN);
-      if ((!EncoderA) && (EncoderAPrev)) { // Сигнал A изменился с 1 на 0
-        if (EncoderB) Result = eRight;     // B=1 => энкодер вращается по часовой
-        else          Result = eLeft;      // B=0 => энкодер вращается против часовой
-      }
-      EncoderAPrev = EncoderA; // запомним текущее состояние
-      
-    }
-  }
-  return Result;
-}
-
 //****************************************************************************************
 
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
