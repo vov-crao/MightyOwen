@@ -60,7 +60,7 @@ int GST = EEPROM.read(STORE_TEMP_GIST);         // Гистерезис терм
 
 int t2; // температура передаваемая с термодатчика
 int tout;
-const byte koof = 130;
+const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
 bool IsMaxTempReached = false;
 bool StartButtonPressed = false; //кнопка ПУСК
 
@@ -473,13 +473,13 @@ void sound()
   {
     if (t2<t1-GST) 
     {
-      const int motorSpeed = motorSpeedMax*koof; //включается максимальная скорость ШД
+      const int motorSpeed = motorSpeedMax * SteppingMotorHz; //включается максимальная скорость ШД
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
      
     if (t2>=t1+GST) 
     {
-      const int motorSpeed = motorSpeedMin*koof; //включается минимальная скорость ШД
+      const int motorSpeed = motorSpeedMin * SteppingMotorHz; //включается минимальная скорость ШД
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
     }
   }
