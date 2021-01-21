@@ -165,9 +165,92 @@ eEncoderState GetEncoderStateISR()
   return Result;
 }
 
+byte g_DefaultFactory[] = 
+{
+    20    // STORE_FUEL_SPEED_MAX
+  , 10    // STORE_FUEL_SPEED_MIN
+  , 60    // STORE_TARGET_TEMP
+  , 95    // STORE_MOTOR_MAX
+  , 50    // STORE_MOTOR_MIN
+  , 95    // STORE_TEMP_MAX
+  , 4     // STORE_TEMP_GIST
+};
+
+byte g_DefaultLimits[] = 
+{
+    11, 110   // STORE_FUEL_SPEED_MAX
+  , 10, 109   // STORE_FUEL_SPEED_MIN
+  , 10, 95    // STORE_TARGET_TEMP
+  , 25, 95    // STORE_MOTOR_MAX
+  , 25, 95    // STORE_MOTOR_MIN
+  , 25, 95    // STORE_TEMP_MAX
+  , 1, 10     // STORE_TEMP_GIST
+};
+
+/*********************************************************************/
+void resetStorageToFactoryDefaults() 
+{
+  Serial.println("Restore Factory Defaults:"); 
+  
+  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+  {
+    const byte Value = g_DefaultFactory[i];
+    
+    Serial.print(" ");
+    Serial.print(i);
+    Serial.print("="); 
+    Serial.println(Value); 
+    
+    EEPROM.write(i, Value);
+  }
+
+  Serial.println("Restored Factory Defaults!");
+}
+
+/*********************************************************************/
+bool checkStorageToCorrectValues() 
+{
+  Serial.println("Check EEPROM for correct:"); 
+  
+  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+  {
+    const byte Value = EEPROM.read(i);
+    const byte Min = g_DefaultLimits[i*2];
+    const byte Max = g_DefaultLimits[i*2+1];
+    
+    Serial.print(" ");
+    Serial.print(i);
+    Serial.print("="); 
+    Serial.print(Value); 
+    Serial.print(" "); 
+    Serial.print(Min); 
+    Serial.print("<"); 
+    Serial.println(Max); 
+
+    if ((Value < Min) || (Value > Max))
+    {
+      Serial.println("  Wrong!"); 
+
+      return false;
+    }
+  }
+
+  Serial.println("Ok!");
+
+  return true;
+}
+
 /*********************************************************************/
 void setup() 
 {
+  Serial.begin(9600);
+  
+  // Check EEPROM for correctness
+  if (!checkStorageToCorrectValues())
+  {
+    resetStorageToFactoryDefaults();
+  }
+  
   // Start LED
   pinMode(START_LED_PIN, OUTPUT);
   if (!StartButtonPressed) 
@@ -184,8 +267,6 @@ void setup()
   Wire.beginTransmission(0x27);
   
   lcd.begin(20, 4); // initialize the lcd
-  
-  Serial.begin(9600);
   
   pinMode(STEPPER_MOTOR_DIR_PIN, OUTPUT);      
   pinMode(STEPPER_MOTOR_PULSE_PIN, OUTPUT); 
