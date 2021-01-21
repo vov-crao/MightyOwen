@@ -50,16 +50,16 @@ byte VarIndex = STORE_INDEX_MAX;
 //
 //****************************************************************************************
 
-int motorSpeedMax = EEPROM.read(STORE_FUEL_SPEED_MAX);// скорость максимальная
-int motorSpeedMin = EEPROM.read(STORE_FUEL_SPEED_MIN); // скорость минимальная 
-int t1 = EEPROM.read(STORE_TARGET_TEMP); // выставляемая пользователем температура теплоносителя
-int T_max_avar = EEPROM.read(STORE_MOTOR_MAX);  // температура отключения мотора верхняя
-int T_min_avar = EEPROM.read(STORE_MOTOR_MIN);  // температура отключения мотора нижняя
-int t3 = EEPROM.read(STORE_TEMP_MAX);           // температура включения защиты
-int GST = EEPROM.read(STORE_TEMP_GIST);         // Гистерезис терморегулятора
+int motorSpeedMax = 0;// скорость максимальная
+int motorSpeedMin = 0; // скорость минимальная 
+int t1 = 0; // выставляемая пользователем температура теплоносителя
+int T_max_avar = 0;  // температура отключения мотора верхняя
+int T_min_avar = 0;  // температура отключения мотора нижняя
+int t3 = 0;           // температура включения защиты
+int GST = 0;         // Гистерезис терморегулятора
 
-int t2; // температура передаваемая с термодатчика
-int tout;
+int t2 = 0; // температура передаваемая с термодатчика
+int tout = 0;
 const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
 bool IsMaxTempReached = false;
 bool StartButtonPressed = false; //кнопка ПУСК
@@ -241,6 +241,27 @@ bool checkStorageToCorrectValues()
 }
 
 /*********************************************************************/
+void readStorageValues() 
+{
+  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+  {
+    const byte Value = EEPROM.read(i);
+
+    switch (i)
+    {
+      case STORE_FUEL_SPEED_MAX:  motorSpeedMax = Value; break;
+      case STORE_FUEL_SPEED_MIN:  motorSpeedMin = Value; break;
+      case STORE_TARGET_TEMP:     t1 = Value; break;
+      case STORE_MOTOR_MAX:       T_max_avar = Value; break;
+      case STORE_MOTOR_MIN:       T_min_avar = Value; break;
+      case STORE_TEMP_MAX:        t3 = Value; break;
+      case STORE_TEMP_GIST:       GST = Value; break;
+      default: break;
+    }
+  }
+}
+
+/*********************************************************************/
 void setup() 
 {
   Serial.begin(9600);
@@ -250,6 +271,9 @@ void setup()
   {
     resetStorageToFactoryDefaults();
   }
+
+  // Restore variables from Storage
+  readStorageValues();
   
   // Start LED
   pinMode(START_LED_PIN, OUTPUT);
