@@ -29,5 +29,5 @@ public:
   
   int getLastTemp();
   int getNewTemp();
-  bool newMeasure();
+  bool newMeasure(bool IsAsync = true);
 };
