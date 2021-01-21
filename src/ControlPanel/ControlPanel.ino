@@ -382,7 +382,7 @@ void ledBlink()
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
 
-    Serial.print("Water(");
+    Serial.print("Out(");
     if (TempExOut.IsPresent())
       Serial.print("P");
     if (TempExOut.IsWorking())
@@ -390,7 +390,7 @@ void ledBlink()
     Serial.print(") temp=");
     Serial.println(tout);
 
-    Serial.print("Out(");
+    Serial.print("Water(");
     if (TempWater.IsPresent())
       Serial.print("P");
     if (TempWater.IsWorking())
