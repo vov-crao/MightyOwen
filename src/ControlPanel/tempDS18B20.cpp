@@ -12,6 +12,8 @@ ds18b20::ds18b20(const byte Pin, const eResolution Resolution)
 /*********************************************************************/
 bool ds18b20::newMeasure()
 {
+  bool POR = false;
+  
   for (byte i = 0; i < 3; i++)
   {
     m_IsWorking = false;
@@ -36,9 +38,16 @@ bool ds18b20::newMeasure()
 
     if (CRC == m_data[8])
     {
-      // Power-on-reset value detected. Get nex value.
+      // Power-on-reset value detected. The next value will be actual.
+      // The actual value can compare with POR value, so second one is anyway actual.
       if (m_data[1] == 0x05 && m_data[0] == 0x50)
-        continue;
+      {
+        if (!POR)
+        {
+          POR = true;
+          continue;
+        }
+      }
         
       m_IsWorking = true;
       return true;
