@@ -487,50 +487,6 @@ void ledBlink()
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
-/*
-    t2 = TempWater.getNewTemp();
-    tout = TempExOut.getNewTemp();
-
-    Serial.print("Out(");
-    if (TempExOut.IsPresent())
-      Serial.print("P");
-    if (TempExOut.IsWorking())
-      Serial.print("W");
-    Serial.print(") temp=");
-    Serial.println(tout);
-
-    Serial.print("Water(");
-    if (TempWater.IsPresent())
-      Serial.print("P");
-    if (TempWater.IsWorking())
-      Serial.print("W");
-    Serial.print(") temp=");
-    Serial.println(t2);
-
-    lcd.setBacklight(255);
-
-    lcd.setCursor(13,1);  
-    lcd.print("t2=     ");
-    lcd.setCursor(16,1);
-    if (!TempWater.IsPresent())
-      lcd.print("--");
-    else if (!TempWater.IsWorking())
-      lcd.print("??");
-    else
-      lcd.print(t2);
-
-    lcd.setCursor(17,2);  
-    lcd.print("to");
-    lcd.setCursor(17,3);  
-    lcd.print("    ");
-    lcd.setCursor(17,3);  
-    if (!TempExOut.IsPresent())
-      lcd.print("--");
-    else if (!TempExOut.IsWorking())
-      lcd.print("??");
-    else
-      lcd.print(tout);
-*/      
 }
 
 /*********************************************************************/

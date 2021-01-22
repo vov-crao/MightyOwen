@@ -3,6 +3,8 @@
 #include <stdint.h> 
 #include <Arduino.h>
 
+// Find LSM solution of equation A*X^2 + B*X + C = Y
+/*********************************************************************/
 bool LSM_3
 ( const int* X
 , const float* Y
