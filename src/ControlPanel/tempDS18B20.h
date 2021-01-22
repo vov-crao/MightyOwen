@@ -26,8 +26,10 @@ public:
 
   bool IsPresent() const { return m_IsPresent; }
   bool IsWorking() const { return m_IsWorking; }
+  byte GetResolutionBits();
   
-  int getLastTemp();
+  int getLastTemp() const;
+  float getLastFloatTemp() const;
   int getNewTemp();
   bool newMeasure(bool IsAsync = true);
 };

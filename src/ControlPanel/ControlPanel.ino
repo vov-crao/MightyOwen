@@ -7,6 +7,8 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 #include <EEPROM.h>
 #include "LSM.h"
 
+SolveEq3Cyclic HeatTemp;
+
 // Start button
 #define START_BUTTON_PIN 11
 
@@ -612,6 +614,22 @@ void sound()
   {
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
+
+    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
+
+    if (HeatTemp.Num() > 5)
+    {
+      const bool Ok = HeatTemp.SolveLSM();
+      if (Ok && HeatTemp.Xmax() != 0)
+      {
+        Serial.print("Xmax=");
+        Serial.print(HeatTemp.Xmax());
+        Serial.print(",In=");
+        Serial.print(HeatTemp.XmaxIn());
+        Serial.print(",Ymax=");
+        Serial.println(HeatTemp.Ymax());
+      }
+    }
 
     Serial.print("Out(");
     if (TempExOut.IsPresent())

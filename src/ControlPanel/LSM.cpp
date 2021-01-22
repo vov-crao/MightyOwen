@@ -106,6 +106,8 @@ bool test1()
 /*********************************************************************/
 bool SolveEq3Cyclic::CalcSums()
 {
+  return true;
+/*  
   SumX = 0;
   SumX2 = 0;
   SumX3 = 0;
@@ -140,13 +142,48 @@ bool SolveEq3Cyclic::CalcSums()
     x *= X;
     SumX4 += x;
   }
-
+*/
   return true;
 }
 
 /*********************************************************************/
 bool SolveEq3Cyclic::CalcDets()
 {
+  float SumX = 0;
+  float SumX2 = 0;
+  float SumX3 = 0;
+  float SumX4 = 0;
+
+  float SumY = 0;
+  float SumYX = 0;
+  float SumYX2 = 0;
+
+  if (m_Num < 3)
+    return false;
+
+  const float X0 = m_X[m_StartIndex];
+  for (int i = 0; i < m_Num; i++)
+  {
+    const int Index = (m_StartIndex + i) % BUFFER_LEN;
+    float x = m_X[Index] - X0;
+    const float y = m_Y[Index];
+    const float X = x;
+
+    SumY += y;
+    SumYX += y*x;
+    SumX += x;
+    
+    x *= X;
+    SumX2 += x;
+    SumYX2 += y*x;
+    
+    x *= X;
+    SumX3 += x;
+    
+    x *= X;
+    SumX4 += x;
+  }
+
   m_Det = SumX4 * SumX2 * m_Num;
   m_Det += 2*(SumX3 * SumX2 * SumX);
   m_Det -= SumX2 * sq(SumX2);
@@ -183,6 +220,10 @@ bool SolveEq3Cyclic::CalcDets()
 /*********************************************************************/
 bool SolveEq3Cyclic::CalcCoeffs()
 {
+  m_a0 = 0;
+  m_a1 = 0;
+  m_a2 = 0;
+  
   if (m_Det < 1e-10)
     return false;
 
@@ -202,9 +243,7 @@ void SolveEq3Cyclic::Add(const float X, const float Y)
   Serial.print(Y);
   Serial.print(") ");
 
-  int Index = m_StartIndex + m_Num;
-  if (Index >= BUFFER_LEN)
-    Index -= BUFFER_LEN;
+  const int Index = GetIndex(m_Num);
 
   Serial.print(Index);
     
@@ -247,6 +286,39 @@ bool SolveEq3Cyclic::SolveLSM()
 }
 
 /*********************************************************************/
+int SolveEq3Cyclic::GetIndex(const int Offset) const
+{
+  int Index = m_StartIndex + Offset;
+  if (Index >= BUFFER_LEN)
+    Index -= BUFFER_LEN;
+
+  return Index;
+}
+
+/*********************************************************************/
+float SolveEq3Cyclic::Xmax() const
+{
+  if (m_Det < 1e-10)
+    return 0;
+
+  return -a1() / a2() / 2;
+}
+
+/*********************************************************************/
+float SolveEq3Cyclic::XmaxIn() const
+{
+  const float Xm = Xmax();
+  const int Index = GetIndex(m_Num-1);
+  return (m_X[Index] - m_X[GetIndex(0)]) - Xm;
+}
+
+/*********************************************************************/
+float SolveEq3Cyclic::Ymax() const
+{
+  return a0() + Xmax() * a1() / 2;
+}
+
+/*********************************************************************/
 bool test2()
 {
   const int X[] =   {0, 1 ,2 ,3 ,4 ,5 ,6 ,7 ,8 ,9 ,10,11,12,13,14,15,16,17,18,19,20,21,22};
@@ -277,6 +349,10 @@ bool test2()
   Serial.print(Eq.a1());
   Serial.print(",a0=");
   Serial.print(Eq.a0());
+  Serial.print(" Xmax=");
+  Serial.print(Eq.Xmax());
+  Serial.print(",Ymax=");
+  Serial.print(Eq.Ymax());
   Serial.print(" ");
   Serial.println(Ok ? "Ok" : "FAILED");
 

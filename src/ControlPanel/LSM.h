@@ -11,7 +11,7 @@ bool LSM_3
 
 bool test1();
 
-const int BUFFER_LEN = 23;
+const int BUFFER_LEN = 30;
 
 class SolveEq3Cyclic
 {
@@ -20,7 +20,7 @@ class SolveEq3Cyclic
   float m_Y[BUFFER_LEN];
   int m_StartIndex = 0;
   int m_Num = 0;
-
+/*
   // Calc variables
   float SumX = 0;
   float SumX2 = 0;
@@ -30,7 +30,7 @@ class SolveEq3Cyclic
   float SumY = 0;
   float SumYX = 0;
   float SumYX2 = 0;
-
+*/
   // Determinants
   float m_Det = 0;
   float m_Det1 = 0;
@@ -49,9 +49,18 @@ private:
   bool CalcCoeffs();
   
 public:
+  int Num() const { return m_Num; }
+
+  // Solved
   float a0() const { return m_a0; }
   float a1() const { return m_a1; }
   float a2() const { return m_a2; }
+  
+  int GetIndex(const int Offset) const;
+  
+  float Xmax() const;
+  float XmaxIn() const;
+  float Ymax() const;
   
   void Add(const float X, const float Y);
   void Reset();

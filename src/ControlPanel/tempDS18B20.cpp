@@ -82,10 +82,27 @@ int ds18b20::getNewTemp()
 }
 
 /*********************************************************************/
-int ds18b20::getLastTemp()
+byte ds18b20::GetResolutionBits()
+{
+  if (newMeasure())
+    return 9 + ((m_data[4] >> 5) & 0x3);
+
+  return 12;
+}
+
+/*********************************************************************/
+int ds18b20::getLastTemp() const
 {
   int T = (m_data[1] << 8) | m_data[0];
   T += 1 << 3; // round temp on 0.5C
       
   return T >> 4;
+}
+
+/*********************************************************************/
+float ds18b20::getLastFloatTemp() const
+{
+  const int T = (m_data[1] << 8) | m_data[0];
+      
+  return float(T) / 16.0;
 }
