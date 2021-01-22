@@ -265,10 +265,11 @@ void readStorageValues()
 /*********************************************************************/
 void setup() 
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // Tests
-  test1();
+//  test1();
+  test2();
   
   // Check EEPROM for correctness
   if (!checkStorageToCorrectValues())
@@ -487,6 +488,48 @@ void ledBlink()
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
+}
+
+/*
+ * The attraction of function to B value is follows decay formula:
+ * Y = B + A * exp(-C*X)                                                 (1)
+  B  --------------------------------------------------> X
+     |                           ****************
+     |                *********** 
+     |        ********
+     |     ***
+     |   **
+     | **
+  A  |*
+     V
+   Y
+
+   Let represent exp as polinom of 2 degree and approximate with this new equation:
+
+   exp(X) = 1 + X/1! + X^2/2!                                             (2)
+
+   Y = B + A*(1 -C*X + C^2/2*X^2)                                         (3)
+     = B+A -A*C * X + A*C^2/2 * X^2                                       (4)
+     = a0 + a1*X + a2*X^2;                                                (5)
+
+   a0 = B+A                (6)
+   a1 = -A*C               (7)
+   a2 = A*C^2/2            (8)
+
+   Maximum of (5) is:
+     Y' = a1 + 2*a2*Xmax == 0;    (9)
+
+   Xmax = - a1/a2/2;              (10)
+   Ymax = a2*(a1^2 / a2^2 / 4) - a1*(a1 /a2 /2) + a0 = a1^2/a2/4 - a1^2/a2/2 + a0
+        = a0 + a1^2/a2/2*(1/2-1) 
+        = a0 - a1^2/a2/4          (11)
+        = a0 + Xmax * a1/2        (12)
+        
+   
+*/
+/*********************************************************************/
+void CalcTempToReach()
+{
 }
 
 /*********************************************************************/
