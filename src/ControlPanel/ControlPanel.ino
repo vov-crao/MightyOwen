@@ -5,6 +5,7 @@
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include <EEPROM.h>
+#include "LSM.h"
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -265,6 +266,9 @@ void readStorageValues()
 void setup() 
 {
   Serial.begin(9600);
+
+  // Tests
+  test1();
   
   // Check EEPROM for correctness
   if (!checkStorageToCorrectValues())
