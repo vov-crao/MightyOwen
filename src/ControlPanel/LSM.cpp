@@ -1,7 +1,6 @@
 #include "LSM.h"
 
 #include <stdint.h> 
-#include <Arduino.h>
 
 // Find LSM solution of equation A*X^2 + B*X + C = Y
 /*********************************************************************/
@@ -161,12 +160,12 @@ bool SolveEq3Cyclic::CalcDets()
   if (m_Num < 3)
     return false;
 
-  const float X0 = m_X[m_StartIndex];
+  const int X0 = m_Num;
   for (int i = 0; i < m_Num; i++)
   {
-    const int Index = (m_StartIndex + i) % BUFFER_LEN;
-    float x = m_X[Index] - X0;
-    const float y = m_Y[Index];
+    const int Index = GetIndex(i);
+    float x = Index - X0;
+    const float y = float(m_Y[Index]) / 16.0;
     const float X = x;
 
     SumY += y;
@@ -235,6 +234,7 @@ bool SolveEq3Cyclic::CalcCoeffs()
 }
 
 /*********************************************************************/
+/*
 void SolveEq3Cyclic::Add(const float X, const float Y)
 {
   Serial.print("Add(");
@@ -249,6 +249,36 @@ void SolveEq3Cyclic::Add(const float X, const float Y)
     
   m_X[Index] = X;
   m_Y[Index] = Y;
+
+  if (m_Num >= BUFFER_LEN)
+  {
+    m_StartIndex++;
+    if (m_StartIndex >= BUFFER_LEN)
+      m_StartIndex = 0;
+  }    
+  else
+    m_Num++;
+
+  Serial.print(" S=");
+  Serial.print(m_StartIndex);
+  Serial.print(",N=");
+  Serial.println(m_Num);
+}
+*/
+/*********************************************************************/
+void SolveEq3Cyclic::Add(const int T)
+{
+  Serial.print("Add(");
+  Serial.print(T);
+  Serial.print("|");
+  Serial.print(float(T / 16.0));
+  Serial.print("C) ");
+
+  const int Index = GetIndex(m_Num);
+
+  Serial.print(Index);
+    
+  m_Y[Index] = T;
 
   if (m_Num >= BUFFER_LEN)
   {
@@ -286,9 +316,9 @@ bool SolveEq3Cyclic::SolveLSM()
 }
 
 /*********************************************************************/
-int SolveEq3Cyclic::GetIndex(const int Offset) const
+byte SolveEq3Cyclic::GetIndex(const byte Offset) const
 {
-  int Index = m_StartIndex + Offset;
+  byte Index = m_StartIndex + Offset;
   if (Index >= BUFFER_LEN)
     Index -= BUFFER_LEN;
 
@@ -305,14 +335,6 @@ float SolveEq3Cyclic::Xmax() const
 }
 
 /*********************************************************************/
-float SolveEq3Cyclic::XmaxIn() const
-{
-  const float Xm = Xmax();
-  const int Index = GetIndex(m_Num-1);
-  return (m_X[Index] - m_X[GetIndex(0)]) - Xm;
-}
-
-/*********************************************************************/
 float SolveEq3Cyclic::Ymax() const
 {
   return a0() + Xmax() * a1() / 2;
@@ -321,24 +343,24 @@ float SolveEq3Cyclic::Ymax() const
 /*********************************************************************/
 bool test2()
 {
-  const int X[] =   {0, 1 ,2 ,3 ,4 ,5 ,6 ,7 ,8 ,9 ,10,11,12,13,14,15,16,17,18,19,20,21,22};
-  const float Y[] = {19,20,20,21,22,23,23,24,24,25,25,26,26,26,27,27,27,28,28,28,28,29,29};
+//  const int X[] =   {0, 1 ,2 ,3 ,4 ,5 ,6 ,7 ,8 ,9 ,10,11,12,13,14,15,16,17,18,19,20,21,22};
+  const int Y[] = {19,20,20,21,22,23,23,24,24,25,25,26,26,26,27,27,27,28,28,28,28,29,29};
 
   Serial.print("Test2:");
 
   SolveEq3Cyclic Eq;
 
-  const int Num = sizeof(X)/sizeof(X[0]);
+  const int Num = sizeof(Y)/sizeof(Y[0]);
   Serial.println(Num);
 
   for (int i = 0; i < Num/2; i++)
   {
-    Eq.Add(0, 0);
+ //   Eq.Add(0);
   }
 
   for (int i = 0; i < Num; i++)
   {
-    Eq.Add(X[i], Y[i]);
+    Eq.Add(Y[i] << 4);
   }
 
   const bool Ok = Eq.SolveLSM();
@@ -357,4 +379,64 @@ bool test2()
   Serial.println(Ok ? "Ok" : "FAILED");
 
   return Ok;
+}
+
+/*********************************************************************/
+byte MeanCyclic::GetIndex(const byte Offset) const
+{
+  byte Index = m_StartIndex + Offset;
+  if (Index >= TEMP_BUFFER_LEN)
+    Index -= TEMP_BUFFER_LEN;
+
+  return Index;
+}
+
+/*********************************************************************/
+void MeanCyclic::Add(const int T)
+{
+  Serial.print("Add(");
+  Serial.print(T);
+  Serial.print(") ");
+
+  const byte Index = GetIndex(m_Num);
+
+  Serial.print(Index);
+    
+  m_Temp[Index] = T;
+
+  if (m_Num >= TEMP_BUFFER_LEN)
+  {
+    m_StartIndex++;
+    if (m_StartIndex >= TEMP_BUFFER_LEN)
+      m_StartIndex = 0;
+  }    
+  else
+    m_Num++;
+
+  Serial.print(" S=");
+  Serial.print(m_StartIndex);
+  Serial.print(",N=");
+  Serial.println(m_Num);
+}
+
+/*********************************************************************/
+void MeanCyclic::Reset()
+{
+  m_StartIndex = 0;
+  m_Num = 0;
+}
+
+/*********************************************************************/
+int MeanCyclic::Calc() const
+{
+  long T = 0;
+  for (byte i = 0; i < m_Num; i++)
+  {
+    const byte Index = GetIndex(i);
+    const int t = m_Temp[Index];
+
+    T += t;
+  }
+
+  return T / m_Num;
 }

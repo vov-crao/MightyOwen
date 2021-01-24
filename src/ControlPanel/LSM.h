@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Arduino.h>
+
 bool LSM_3
 ( const int* X
 , const float* Y
@@ -13,13 +15,18 @@ bool test1();
 
 const int BUFFER_LEN = 30;
 
+/*******************************************************
+ * 
+ * 
+ * 
+ *******************************************************/
 class SolveEq3Cyclic
 {
   // Buffers handling
-  float m_X[BUFFER_LEN];
-  float m_Y[BUFFER_LEN];
-  int m_StartIndex = 0;
-  int m_Num = 0;
+//  float m_X[BUFFER_LEN];
+  int m_Y[BUFFER_LEN];
+  byte m_StartIndex = 0;
+  byte m_Num = 0;
 /*
   // Calc variables
   float SumX = 0;
@@ -56,15 +63,43 @@ public:
   float a1() const { return m_a1; }
   float a2() const { return m_a2; }
   
-  int GetIndex(const int Offset) const;
+  byte GetIndex(const byte Offset) const;
   
   float Xmax() const;
-  float XmaxIn() const;
   float Ymax() const;
   
-  void Add(const float X, const float Y);
+//  void Add(const float X, const float Y);
+  void Add(const int T);
   void Reset();
   bool SolveLSM();
 };
 
 bool test2();
+
+const int TEMP_BUFFER_LEN = 10;
+
+/*******************************************************
+ * 
+ * 
+ * 
+ *******************************************************/
+class MeanCyclic
+{
+  // Buffers handling
+  int m_Temp[TEMP_BUFFER_LEN];
+
+  // Cyclic
+  byte m_StartIndex = 0;
+  byte m_Num = 0;
+
+public:
+  byte Num() const { return m_Num; }
+
+  byte GetIndex(const byte Offset) const;
+
+public:
+  void Add(const int T);
+  void Reset();
+
+  int Calc() const;
+};

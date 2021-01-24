@@ -5,9 +5,17 @@
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include <EEPROM.h>
+
 #include "LSM.h"
 
-// SolveEq3Cyclic HeatTemp;
+SolveEq3Cyclic HeatTemp;
+//MeanCyclic WaterTempMean;
+
+/*
+#include "Hotter.h"
+
+HotterMotor HM(30, 10, 25, 2);
+*/
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -614,23 +622,31 @@ void sound()
   {
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
-/*
-    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
+
+//    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
+    HeatTemp.Add(TempWater.getLastTempRaw());
 
     if (HeatTemp.Num() > 5)
     {
       const bool Ok = HeatTemp.SolveLSM();
       if (Ok && HeatTemp.Xmax() != 0)
       {
+        Serial.print("a2=");
+        Serial.print(HeatTemp.a2());
+        Serial.print(",a1=");
+        Serial.print(HeatTemp.a1());
+        Serial.print(",a0=");
+        Serial.print(HeatTemp.a0());
         Serial.print("Xmax=");
         Serial.print(HeatTemp.Xmax());
-        Serial.print(",In=");
-        Serial.print(HeatTemp.XmaxIn());
         Serial.print(",Ymax=");
         Serial.println(HeatTemp.Ymax());
       }
     }
-*/
+
+/*
+    WaterTempMean.Add(TempWater.getNewTempRaw())
+*/    
     Serial.print("Out(");
     if (TempExOut.IsPresent())
       Serial.print("P");
@@ -646,7 +662,10 @@ void sound()
       Serial.print("W");
     Serial.print(") temp=");
     Serial.println(t2);
-
+/*
+    Serial.print(" Mean water temp=");
+    Serial.println(float(WaterTempMean.Calc()) / 16.0);
+*/
     lcd.setBacklight(255);
 
     lcd.setCursor(13,1);  
@@ -684,6 +703,8 @@ void sound()
      
   if (StartButtonPressed) 
   {
+//    HM.AddTemp(t2);
+    
     if (t2<t1-GST) 
     {
       const int motorSpeed = motorSpeedMax * SteppingMotorHz; //включается максимальная скорость ШД

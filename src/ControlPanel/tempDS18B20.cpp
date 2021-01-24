@@ -93,16 +93,22 @@ byte ds18b20::GetResolutionBits()
 /*********************************************************************/
 int ds18b20::getLastTemp() const
 {
-  int T = (m_data[1] << 8) | m_data[0];
+  int T = getLastTempRaw();
   T += 1 << 3; // round temp on 0.5C
       
   return T >> 4;
 }
 
 /*********************************************************************/
+int ds18b20::getLastTempRaw() const
+{
+  return (m_data[1] << 8) | m_data[0];
+}
+
+/*********************************************************************/
 float ds18b20::getLastFloatTemp() const
 {
-  const int T = (m_data[1] << 8) | m_data[0];
+  const int T = getLastTempRaw();
       
   return float(T) / 16.0;
 }
