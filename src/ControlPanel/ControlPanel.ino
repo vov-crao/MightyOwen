@@ -54,6 +54,8 @@ const byte STORE_INDEX_MAX       = 7;
 
 byte VarIndex = STORE_INDEX_MAX;
 
+byte StoreValueUpdatedFlags = 0xFF;
+
 // Stepper Motor
 #define STEPPER_MOTOR_PULSE_PIN 9
 #define STEPPER_MOTOR_DIR_PIN   8
@@ -401,6 +403,9 @@ void SaveUpdatedVarToStoreVar()
       Serial.print(StoreCurrentValue, 10); 
             
       EEPROM.write(VarIndex, StoreCurrentValue);
+
+      // MArk this Index as updated - it need to be displayed with new value;
+      StoreValueUpdatedFlags |= 1 << VarIndex;
     }
     Serial.println();
   }
@@ -507,6 +512,8 @@ void loop()
           StoreCurrentValue = EEPROM.read(VarIndex);
           Serial.println(StoreCurrentValue, 10); 
         }
+          
+        StoreValueUpdatedFlags = 0xFF;
       }
   }
 
@@ -580,55 +587,91 @@ void PrintMarker(const byte Index)
 /*********************************************************************/
 void sound() 
 { 
-  lcd.setCursor(0,0);  
-  lcd.print("Vmax=    ");
-  lcd.setCursor(5,0);  
-  lcd.print(motorSpeedMax);
-  PrintMarker(STORE_FUEL_SPEED_MAX);
-     
-  lcd.setCursor(0,1); 
-  lcd.print("Vmin=    ");
-  lcd.setCursor(5,1);  
-  lcd.print(motorSpeedMin);
-  PrintMarker(STORE_FUEL_SPEED_MIN);
-     
-  lcd.setCursor(13,0);  
-  lcd.print("t1=    ");
-  lcd.setCursor(16,0);  
-  lcd.print(t1);
-  PrintMarker(STORE_TARGET_TEMP);
+  lcd.setBacklight(255);
 
-  lcd.setCursor(0,2);
-  lcd.print("Tmax");
-  lcd.setCursor(1,3); 
-  lcd.print("    "); 
-  lcd.setCursor(1,3); 
-  lcd.print(T_max_avar);
-  PrintMarker(STORE_MOTOR_MAX);
-                   
-  lcd.setCursor(5,2);  
-  lcd.print("Tmin");
-  lcd.setCursor(6,3);  
-  lcd.print("    ");
-  lcd.setCursor(6,3); 
-  lcd.print(T_min_avar);
-  PrintMarker(STORE_MOTOR_MIN);
-      
-  lcd.setCursor(10,2);  
-  lcd.print("t3");
-  lcd.setCursor(10,3);  
-  lcd.print("   ");
-  lcd.setCursor(10,3);  
-  lcd.print(t3);
-  PrintMarker(STORE_TEMP_MAX);
+  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
+  {
+    lcd.setCursor(0,0);  
+    lcd.print("Vmax=    ");
+    lcd.setCursor(5,0);  
+    lcd.print(motorSpeedMax);
+    PrintMarker(STORE_FUEL_SPEED_MAX);
+    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MAX);
+  }
+ 
+  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MIN))
+  {
+    lcd.setCursor(0,1); 
+    lcd.print("Vmin=    ");
+    lcd.setCursor(5,1);  
+    lcd.print(motorSpeedMin);
+    PrintMarker(STORE_FUEL_SPEED_MIN);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MIN);
+  }
      
-  lcd.setCursor(13,2);  
-  lcd.print("Gst");
-  lcd.setCursor(14,3); 
-  lcd.print("   "); 
-  lcd.setCursor(14,3); 
-  lcd.print(GST);
-  PrintMarker(STORE_TEMP_GIST);
+  if (StoreValueUpdatedFlags & (1 << STORE_TARGET_TEMP))
+  {
+    lcd.setCursor(13,0);  
+    lcd.print("t1=    ");
+    lcd.setCursor(16,0);  
+    lcd.print(t1);
+    PrintMarker(STORE_TARGET_TEMP);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TARGET_TEMP);
+  }
+
+  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MAX))
+  {
+    lcd.setCursor(0,2);
+    lcd.print("Tmax");
+    lcd.setCursor(1,3); 
+    lcd.print("    "); 
+    lcd.setCursor(1,3); 
+    lcd.print(T_max_avar);
+    PrintMarker(STORE_MOTOR_MAX);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MAX);
+  }
+                   
+  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MIN))
+  {
+    lcd.setCursor(5,2);  
+    lcd.print("Tmin");
+    lcd.setCursor(6,3);  
+    lcd.print("    ");
+    lcd.setCursor(6,3); 
+    lcd.print(T_min_avar);
+    PrintMarker(STORE_MOTOR_MIN);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MIN);
+  }
+      
+  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_MAX))
+  {
+    lcd.setCursor(10,2);  
+    lcd.print("t3");
+    lcd.setCursor(10,3);  
+    lcd.print("   ");
+    lcd.setCursor(10,3);  
+    lcd.print(t3);
+    PrintMarker(STORE_TEMP_MAX);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_MAX);
+  }
+     
+  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_GIST))
+  {
+    lcd.setCursor(13,2);  
+    lcd.print("Gst");
+    lcd.setCursor(14,3); 
+    lcd.print("   "); 
+    lcd.setCursor(14,3); 
+    lcd.print(GST);
+    PrintMarker(STORE_TEMP_GIST);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_GIST);
+  }
 
 
   //-----
@@ -689,7 +732,7 @@ void sound()
     Serial.print(" Mean water temp=");
     Serial.println(float(WaterTempMean.Calc()) / 16.0);
 */
-    lcd.setBacklight(255);
+//    lcd.setBacklight(255);
 
     lcd.setCursor(13,1);  
     lcd.print("t2=     ");
@@ -706,7 +749,7 @@ void sound()
     lcd.setCursor(17,2);  
     lcd.print("to");
     lcd.setCursor(17,3);  
-    lcd.print("    ");
+    lcd.print("   ");
     lcd.setCursor(17,3);  
     if (!TempExOut.IsPresent())
       lcd.print("--");
