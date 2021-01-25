@@ -65,6 +65,7 @@ byte StoreValueUpdatedFlags = 0xFF;
 
 int motorSpeedMax = 0;// скорость максимальная
 int motorSpeedMin = 0; // скорость минимальная 
+int motorSpeedCurrent = 0;
 int t1 = 0; // выставляемая пользователем температура теплоносителя
 int T_max_avar = 0;  // температура отключения мотора верхняя
 int T_min_avar = 0;  // температура отключения мотора нижняя
@@ -592,7 +593,7 @@ void sound()
   if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
   {
     lcd.setCursor(0,0);  
-    lcd.print("Vmax=    ");
+    lcd.print("Vmax=   ");
     lcd.setCursor(5,0);  
     lcd.print(motorSpeedMax);
     PrintMarker(STORE_FUEL_SPEED_MAX);
@@ -602,7 +603,7 @@ void sound()
   if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MIN))
   {
     lcd.setCursor(0,1); 
-    lcd.print("Vmin=    ");
+    lcd.print("Vmin=   ");
     lcd.setCursor(5,1);  
     lcd.print(motorSpeedMin);
     PrintMarker(STORE_FUEL_SPEED_MIN);
@@ -613,7 +614,7 @@ void sound()
   if (StoreValueUpdatedFlags & (1 << STORE_TARGET_TEMP))
   {
     lcd.setCursor(13,0);  
-    lcd.print("t1=    ");
+    lcd.print("t1=   ");
     lcd.setCursor(16,0);  
     lcd.print(t1);
     PrintMarker(STORE_TARGET_TEMP);
@@ -770,19 +771,36 @@ void sound()
   if (StartButtonPressed) 
   {
 //    HM.AddTemp(t2);
+    bool MotorSpeedChanged = false;
     
     if (t2<t1-GST) 
     {
-      const int motorSpeed = motorSpeedMax * SteppingMotorHz; //включается максимальная скорость ШД
-      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
+      motorSpeedCurrent = motorSpeedMax;
+      MotorSpeedChanged = true;
     }
      
     if (t2>=t1+GST) 
     {
-      const int motorSpeed = motorSpeedMin * SteppingMotorHz; //включается минимальная скорость ШД
+      motorSpeedCurrent = motorSpeedMin;
+      MotorSpeedChanged = true;
+    }
+
+    if (MotorSpeedChanged)
+    {
+      const int motorSpeed = motorSpeedCurrent * SteppingMotorHz;
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
+
+      Serial.print("Motor Speed=");
+      Serial.println(motorSpeedCurrent);
     }
   }
+
+    // Motor speed current
+    lcd.setCursor(8,0);  
+    lcd.print("     ");
+    lcd.setCursor(9,0);
+    lcd.print(motorSpeedCurrent);
+
 
   if (IsMaxTempReached)
   {
