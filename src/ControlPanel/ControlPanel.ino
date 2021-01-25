@@ -8,7 +8,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include "LSM.h"
 
-SolveEq3Cyclic HeatTemp;
+// SolveEq3Cyclic HeatTemp;
 //MeanCyclic WaterTempMean;
 
 /*
@@ -387,6 +387,26 @@ void CheckLimitStoreVar()
 }
 
 /*********************************************************************/
+void SaveUpdatedVarToStoreVar() 
+{
+  // Store prev updated value
+  if (VarIndex < STORE_INDEX_MAX)
+  {
+    const byte OldValue = EEPROM.read(VarIndex);
+    Serial.print(" Old value:"); 
+    Serial.print(OldValue, 10); 
+    if (StoreCurrentValue != OldValue)
+    {
+      Serial.print(" Write new value:"); 
+      Serial.print(StoreCurrentValue, 10); 
+            
+      EEPROM.write(VarIndex, StoreCurrentValue);
+    }
+    Serial.println();
+  }
+}
+
+/*********************************************************************/
 void UpdateVarWithStoreVar()
 {
   switch(VarIndex)
@@ -400,6 +420,8 @@ void UpdateVarWithStoreVar()
     case STORE_TEMP_GIST:       GST = StoreCurrentValue; break;
     default: break;
   }
+
+  SaveUpdatedVarToStoreVar();
 }
 
 /*********************************************************************/
@@ -453,7 +475,7 @@ void loop()
       {
         Serial.print("Knob pressed. Old index:"); 
         Serial.print(VarIndex, 10); 
-        
+#if 0        
         // Store prev updated value
         if (VarIndex < STORE_INDEX_MAX)
         {
@@ -468,7 +490,7 @@ void loop()
             EEPROM.write(VarIndex, StoreCurrentValue);
           }
         }
-
+#endif
         Serial.println();
         
         ++VarIndex;
@@ -624,6 +646,7 @@ void sound()
     tout = TempExOut.getNewTemp();
 
 //    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
+/*
     HeatTemp.Add(TempWater.getLastTempRaw());
 
     if (HeatTemp.Num() > 5)
@@ -643,7 +666,7 @@ void sound()
         Serial.println(HeatTemp.Ymax());
       }
     }
-
+*/
 /*
     WaterTempMean.Add(TempWater.getNewTempRaw())
 */    
