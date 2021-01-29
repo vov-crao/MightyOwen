@@ -80,7 +80,6 @@ bool StartButtonPressed = false; //кнопка ПУСК
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
 Thread soundThread = Thread(); // создаём поток управления 
-Thread blinkThread = Thread(); // создаём поток мигания курсором
 
 /* Pin to interrupt map:
 * D0-D7 = PCINT 16-23 = PCIR2 = PD = PCIE2 = pcmsk2
@@ -448,9 +447,6 @@ void loop()
     if (soundThread.shouldRun())
         soundThread.run(); // запускаем поток
 
-    if (blinkThread.shouldRun())
-        blinkThread.run(); // запускаем поток
-    
   switch (GetEncoderStateISR()) 
   {
     case eNone: return;
