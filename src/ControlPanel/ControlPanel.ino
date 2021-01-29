@@ -762,6 +762,9 @@ void sound()
     s_LastTempUpdate = CurrTime;
   }
 
+  if (!TempWater.IsWorking())
+    return;
+    
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
