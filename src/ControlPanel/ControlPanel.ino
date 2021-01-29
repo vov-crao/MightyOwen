@@ -63,9 +63,9 @@ byte StoreValueUpdatedFlags = 0xFF;
 //
 //****************************************************************************************
 
-int motorSpeedMax = 0;// скорость максимальная
-int motorSpeedMin = 0; // скорость минимальная 
-int motorSpeedCurrent = 0;
+byte motorSpeedMax = 0;// скорость максимальная
+byte motorSpeedMin = 0; // скорость минимальная 
+byte motorSpeedCurrent = 0;
 int t1 = 0; // выставляемая пользователем температура теплоносителя
 int T_max_avar = 0;  // температура отключения мотора верхняя
 int T_min_avar = 0;  // температура отключения мотора нижняя
@@ -774,23 +774,24 @@ void sound()
   if (StartButtonPressed) 
   {
 //    HM.AddTemp(t2);
-    bool MotorSpeedChanged = false;
+    const byte MotorSpeedLast = motorSpeedCurrent;
     
     if (t2<t1-GST) 
     {
       motorSpeedCurrent = motorSpeedMax;
-      MotorSpeedChanged = true;
     }
      
     if (t2>=t1+GST) 
     {
       motorSpeedCurrent = motorSpeedMin;
-      MotorSpeedChanged = true;
     }
 
-    if (MotorSpeedChanged)
+    // Limit motor speed to be in actual speed ranges
+//    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
+
+    if (motorSpeedCurrent != MotorSpeedLast)
     {
-      const int motorSpeed = motorSpeedCurrent * SteppingMotorHz;
+      const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
       Serial.print("Motor Speed=");
