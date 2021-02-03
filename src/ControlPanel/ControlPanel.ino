@@ -6,17 +6,6 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include <EEPROM.h>
 
-#include "LSM.h"
-
-// SolveEq3Cyclic HeatTemp;
-//MeanCyclic WaterTempMean;
-
-/*
-#include "Hotter.h"
-
-HotterMotor HM(30, 10, 25, 2);
-*/
-
 // Start button
 #define START_BUTTON_PIN 11
 
@@ -286,12 +275,8 @@ void readStorageValues()
 /*********************************************************************/
 void setup() 
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
-  // Tests
-//  test1();
-  test2();
-  
   // Fix EEPROM for correctness
   fixStorageToCorrectValues();
 
@@ -483,22 +468,6 @@ void loop()
       {
         Serial.print("Knob pressed. Old index:"); 
         Serial.print(VarIndex, 10); 
-#if 0        
-        // Store prev updated value
-        if (VarIndex < STORE_INDEX_MAX)
-        {
-          const byte OldValue = EEPROM.read(VarIndex);
-          Serial.print(" Old value:"); 
-          Serial.print(OldValue, 10); 
-          if (StoreCurrentValue != OldValue)
-          {
-            Serial.print(" Write new value:"); 
-            Serial.print(StoreCurrentValue, 10); 
-            
-            EEPROM.write(VarIndex, StoreCurrentValue);
-          }
-        }
-#endif
         Serial.println();
         
         ++VarIndex;
@@ -530,51 +499,6 @@ void ledBlink()
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
-
-//    t2 = TempWater.getFreshTemp();
-//    tout = TempExOut.getFreshTemp();
-}
-
-/*
- * The attraction of function to B value is follows decay formula:
- * Y = B + A * exp(-C*X)                                                 (1)
-  B  --------------------------------------------------> X
-     |                           ****************
-     |                *********** 
-     |        ********
-     |     ***
-     |   **
-     | **
-  A  |*
-     V
-   Y
-
-   Let represent exp as polinom of 2 degree and approximate with this new equation:
-
-   exp(X) = 1 + X/1! + X^2/2!                                             (2)
-
-   Y = B + A*(1 -C*X + C^2/2*X^2)                                         (3)
-     = B+A -A*C * X + A*C^2/2 * X^2                                       (4)
-     = a0 + a1*X + a2*X^2;                                                (5)
-
-   a0 = B+A                (6)
-   a1 = -A*C               (7)
-   a2 = A*C^2/2            (8)
-
-   Maximum of (5) is:
-     Y' = a1 + 2*a2*Xmax == 0;    (9)
-
-   Xmax = - a1/a2/2;              (10)
-   Ymax = a2*(a1^2 / a2^2 / 4) - a1*(a1 /a2 /2) + a0 = a1^2/a2/4 - a1^2/a2/2 + a0
-        = a0 + a1^2/a2/2*(1/2-1) 
-        = a0 - a1^2/a2/4          (11)
-        = a0 + Xmax * a1/2        (12)
-        
-   
-*/
-/*********************************************************************/
-void CalcTempToReach()
-{
 }
 
 /*********************************************************************/
@@ -589,7 +513,6 @@ void PrintMarker(const byte Index)
   }
 }
 
- // Поток сирены:
 /*********************************************************************/
 void sound() 
 { 
@@ -679,7 +602,6 @@ void sound()
     StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_GIST);
   }
 
-
   //-----
   static unsigned long s_NextTempUpdate = 0;
 
@@ -690,31 +612,6 @@ void sound()
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
 
-//    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
-/*
-    HeatTemp.Add(TempWater.getLastTempRaw());
-
-    if (HeatTemp.Num() > 5)
-    {
-      const bool Ok = HeatTemp.SolveLSM();
-      if (Ok && HeatTemp.Xmax() != 0)
-      {
-        Serial.print("a2=");
-        Serial.print(HeatTemp.a2());
-        Serial.print(",a1=");
-        Serial.print(HeatTemp.a1());
-        Serial.print(",a0=");
-        Serial.print(HeatTemp.a0());
-        Serial.print("Xmax=");
-        Serial.print(HeatTemp.Xmax());
-        Serial.print(",Ymax=");
-        Serial.println(HeatTemp.Ymax());
-      }
-    }
-*/
-/*
-    WaterTempMean.Add(TempWater.getNewTempRaw())
-*/    
     Serial.print("Out(");
     if (TempExOut.IsPresent())
       Serial.print("P");
@@ -730,11 +627,6 @@ void sound()
       Serial.print("W");
     Serial.print(") temp=");
     Serial.println(t2);
-/*
-    Serial.print(" Mean water temp=");
-    Serial.println(float(WaterTempMean.Calc()) / 16.0);
-*/
-//    lcd.setBacklight(255);
 
     lcd.setCursor(13,1);  
     lcd.print("t2=     ");
@@ -763,6 +655,8 @@ void sound()
     s_NextTempUpdate = CurrTime + 1000;
   }
 
+  ///TODO: Add delay of 20 sec to off motor. 
+  // Add pressing start button for 2 sec to start motor again.
   if (!TempWater.IsWorking())
     return;
     
@@ -774,7 +668,6 @@ void sound()
      
   if (StartButtonPressed) 
   {
-//    HM.AddTemp(t2);
     const byte MotorSpeedLast = motorSpeedCurrent;
     
     if (t2<t1-GST) 
