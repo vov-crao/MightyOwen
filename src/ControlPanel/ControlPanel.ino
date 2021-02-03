@@ -21,7 +21,6 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include "tempDS18B20.h"
 ds18b20 TempWater(WATER_SENSOR_PIN);
-ds18b20 TempExOut(EXHOST_SENSOR_PIN);
 
 // Encoder buttons on pins
 #define ENCODER_A_PIN 4
@@ -62,7 +61,6 @@ int t3 = 0;           // температура включения защиты
 int GST = 0;         // Гистерезис терморегулятора
 
 int t2 = 0; // температура передаваемая с термодатчика
-int tout = 0;
 const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
 bool IsMaxTempReached = false;
 bool StartButtonPressed = false; //кнопка ПУСК
@@ -293,7 +291,6 @@ void setup()
     digitalWrite(START_BUTTON_PIN, HIGH); // use pull up resistor
    
   t2 = TempWater.getNewTemp();
-  tout = TempExOut.getNewTemp();
 
   Wire.begin();//Инициализирует библиотеку Wire и подключается к шине I2C как ведущий (мастер) или ведомый.
   Wire.beginTransmission(0x27);
@@ -610,15 +607,6 @@ void sound()
   if (CurrTime >= s_NextTempUpdate)
   {
     t2 = TempWater.getNewTemp();
-    tout = TempExOut.getNewTemp();
-
-    Serial.print("Out(");
-    if (TempExOut.IsPresent())
-      Serial.print("P");
-    else if (TempExOut.IsWorking())
-      Serial.print("W");
-    Serial.print(") temp=");
-    Serial.println(tout);
 
     Serial.print("Water(");
     if (TempWater.IsPresent())
@@ -637,20 +625,6 @@ void sound()
       lcd.print("??");
     else
       lcd.print(t2);
-    if (IsMaxTempReached)
-      lcd.print("!");
-
-    lcd.setCursor(17,2);  
-    lcd.print("to");
-    lcd.setCursor(17,3);  
-    lcd.print("   ");
-    lcd.setCursor(17,3);  
-    if (!TempExOut.IsPresent())
-      lcd.print("--");
-    else if (!TempExOut.IsWorking())
-      lcd.print("??");
-    else
-      lcd.print(tout);
 
     s_NextTempUpdate = CurrTime + 1000;
   }
