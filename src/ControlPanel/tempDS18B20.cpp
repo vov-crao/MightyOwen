@@ -12,20 +12,26 @@ ds18b20::ds18b20(const byte Pin, const eResolution Resolution)
 /*********************************************************************/
 bool ds18b20::newMeasure(bool IsAsync)
 {
+  if (m_IsBusy)
+    return true;
+    
   bool IsPOR = false;
+  
+  m_IsBusy = true;
+  
   for (byte i = 0; i < 25; i++)
   {
     m_IsWorking = false;
     m_IsPresent = false;
     
     if (m_wire.reset() == 0)
-      return false;
+      return m_IsBusy = false, false;
       
     m_wire.write(0xCC);
     m_wire.write(0x44); // measure temperature
 
     if (m_wire.reset() == 0)
-      return false;
+      return m_IsBusy = false, false;
 
     m_IsPresent = true;
     
@@ -64,11 +70,13 @@ bool ds18b20::newMeasure(bool IsAsync)
       }
         
       m_IsWorking = true;
+      m_IsBusy = false;
       return true;
     }
   }
 
   m_IsWorking = false;
+  m_IsBusy = false;
   return false;
 }
 
@@ -76,6 +84,15 @@ bool ds18b20::newMeasure(bool IsAsync)
 int ds18b20::getNewTemp()
 {
   if (newMeasure())
+    return getLastTemp();
+
+  return 0;
+}
+
+/*********************************************************************/
+int ds18b20::getFreshTemp()
+{
+  if (newMeasure(false))
     return getLastTemp();
 
   return 0;

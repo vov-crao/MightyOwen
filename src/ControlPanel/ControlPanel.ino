@@ -301,8 +301,8 @@ void setup()
     pinMode(START_BUTTON_PIN, INPUT);
     digitalWrite(START_BUTTON_PIN, HIGH); // use pull up resistor
    
-  t2 = TempWater.getNewTemp();
-  tout = TempExOut.getNewTemp();
+  t2 = TempWater.getFreshTemp();
+  tout = TempExOut.getFreshTemp();
 
   Wire.begin();//Инициализирует библиотеку Wire и подключается к шине I2C как ведущий (мастер) или ведомый.
   Wire.beginTransmission(0x27);
@@ -524,6 +524,9 @@ void ledBlink()
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
+
+//    t2 = TempWater.getFreshTemp();
+//    tout = TempExOut.getFreshTemp();
 }
 
 /*
@@ -672,15 +675,11 @@ void sound()
 
 
   //-----
-  static unsigned long s_LastTempUpdate = 0;
+  static unsigned long s_NextTempUpdate = 0;
 
   const unsigned long CurrTime = millis();
 
-  // fix wrapping time
-  if (s_LastTempUpdate && CurrTime < s_LastTempUpdate)
-    s_LastTempUpdate = 0;
-
-  if (CurrTime >= s_LastTempUpdate + 1000)
+  if (CurrTime >= s_NextTempUpdate)
   {
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
@@ -723,6 +722,8 @@ void sound()
       Serial.print("P");
     if (TempWater.IsWorking())
       Serial.print("W");
+    if (TempWater.IsBusy())
+      Serial.print("B");
     Serial.print(") temp=");
     Serial.println(t2);
 /*
@@ -734,7 +735,9 @@ void sound()
     lcd.setCursor(13,1);  
     lcd.print("t2=     ");
     lcd.setCursor(16,1);
-    if (!TempWater.IsPresent())
+    if (TempWater.IsBusy())
+      lcd.print("*");
+    else if (!TempWater.IsPresent())
       lcd.print("--");
     else if (!TempWater.IsWorking())
       lcd.print("??");
@@ -755,7 +758,7 @@ void sound()
     else
       lcd.print(tout);
 
-    s_LastTempUpdate = CurrTime;
+    s_NextTempUpdate = CurrTime + 1000;
   }
 
   if (!TempWater.IsWorking())
