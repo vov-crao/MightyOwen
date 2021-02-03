@@ -221,9 +221,11 @@ void resetStorageToFactoryDefaults()
 }
 
 /*********************************************************************/
-bool checkStorageToCorrectValues() 
+bool fixStorageToCorrectValues() 
 {
-  Serial.println("Check EEPROM for correct:"); 
+  bool Ok = true;
+  
+  Serial.println("Fix EEPROM to correct:"); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
@@ -244,13 +246,20 @@ bool checkStorageToCorrectValues()
     {
       Serial.println("  Wrong!"); 
 
-      return false;
+      const byte NewValue = g_DefaultFactory[i];
+  
+      Serial.print(i);
+      Serial.print("<="); 
+      Serial.println(NewValue); 
+      
+      EEPROM.write(i, NewValue);
+      Ok = false;
     }
   }
 
-  Serial.println("Ok!");
+  Serial.println(Ok ? "Ok!" : "Fixed!");
 
-  return true;
+  return Ok;
 }
 
 /*********************************************************************/
@@ -283,11 +292,8 @@ void setup()
 //  test1();
   test2();
   
-  // Check EEPROM for correctness
-  if (!checkStorageToCorrectValues())
-  {
-    resetStorageToFactoryDefaults();
-  }
+  // Fix EEPROM for correctness
+  fixStorageToCorrectValues();
 
   // Restore variables from Storage
   readStorageValues();
@@ -524,6 +530,9 @@ void ledBlink()
     static bool ledStatus = false;    // состояние светодиода Вкл/Выкл
     ledStatus = !ledStatus;           // инвертируем состояние
     digitalWrite(BLINKING_LED_PIN, ledStatus);  // включаем/выключаем светодиод
+
+//    t2 = TempWater.getFreshTemp();
+//    tout = TempExOut.getFreshTemp();
 }
 
 /*
@@ -672,15 +681,11 @@ void sound()
 
 
   //-----
-  static unsigned long s_LastTempUpdate = 0;
+  static unsigned long s_NextTempUpdate = 0;
 
   const unsigned long CurrTime = millis();
 
-  // fix wrapping time
-  if (s_LastTempUpdate && CurrTime < s_LastTempUpdate)
-    s_LastTempUpdate = 0;
-
-  if (CurrTime >= s_LastTempUpdate + 1000)
+  if (CurrTime >= s_NextTempUpdate)
   {
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
@@ -713,7 +718,7 @@ void sound()
     Serial.print("Out(");
     if (TempExOut.IsPresent())
       Serial.print("P");
-    if (TempExOut.IsWorking())
+    else if (TempExOut.IsWorking())
       Serial.print("W");
     Serial.print(") temp=");
     Serial.println(tout);
@@ -755,7 +760,7 @@ void sound()
     else
       lcd.print(tout);
 
-    s_LastTempUpdate = CurrTime;
+    s_NextTempUpdate = CurrTime + 1000;
   }
 
   if (!TempWater.IsWorking())
