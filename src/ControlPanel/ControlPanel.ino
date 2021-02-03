@@ -643,11 +643,14 @@ void sound()
   {
     if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
     {
-      Serial.print("Temp sensor is out of order for 20 sec. STOP MOTOR!");
+      Serial.println("Temp sensor is out of order for 20 sec. STOP MOTOR!");
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
       tone(STEPPER_MOTOR_PULSE_PIN, 0);
+
+      g_LastTimeWorkingTemp = CurrTime;
+
       return;
     }
   }
