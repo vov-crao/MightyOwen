@@ -65,6 +65,8 @@ const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 
 bool IsMaxTempReached = false;
 bool StartButtonPressed = false; //кнопка ПУСК
 
+unsigned long g_LastTimeWorkingTemp = 0;
+
 Thread ledThread = Thread(); // создаём поток управления светодиодом
 Thread soundThread = Thread(); // создаём поток управления 
 
@@ -606,7 +608,13 @@ void sound()
 
   if (CurrTime >= s_NextTempUpdate)
   {
-    t2 = TempWater.getNewTemp();
+    const byte tw = TempWater.getNewTemp();
+
+    if (TempWater.IsWorking())
+    {
+      t2 = tw;
+      g_LastTimeWorkingTemp = CurrTime;
+    }
 
     Serial.print("Water(");
     if (TempWater.IsPresent())
@@ -632,7 +640,17 @@ void sound()
   ///TODO: Add delay of 20 sec to off motor. 
   // Add pressing start button for 2 sec to start motor again.
   if (!TempWater.IsWorking())
-    return;
+  {
+    if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
+    {
+      Serial.print("Temp sensor is out of order for 20 sec. STOP MOTOR!");
+      StartButtonPressed = false;
+      digitalWrite(START_LED_PIN, HIGH);
+
+      tone(STEPPER_MOTOR_PULSE_PIN, 0);
+      return;
+    }
+  }
     
   if (t2 >= t3) 
   {
