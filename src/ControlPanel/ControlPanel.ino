@@ -644,14 +644,21 @@ void sound()
   {
     const byte MotorSpeedLast = motorSpeedCurrent;
     
-    if (t2<t1-GST) 
+    if (t2 < t1-GST) 
     {
       motorSpeedCurrent = motorSpeedMax;
     }
-     
-    if (t2>=t1+GST) 
+    else if (t2 >= t1+GST) 
     {
       motorSpeedCurrent = motorSpeedMin;
+    }
+    else
+    {
+      // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
+      if (motorSpeedCurrent == 0)
+      {
+        motorSpeedCurrent = motorSpeedMax;
+      }
     }
 
     // Limit motor speed to be in actual speed ranges
