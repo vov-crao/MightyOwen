@@ -5,9 +5,17 @@
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include <EEPROM.h>
+
 #include "LSM.h"
 
 // SolveEq3Cyclic HeatTemp;
+//MeanCyclic WaterTempMean;
+
+/*
+#include "Hotter.h"
+
+HotterMotor HM(30, 10, 25, 2);
+*/
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -46,6 +54,8 @@ const byte STORE_INDEX_MAX       = 7;
 
 byte VarIndex = STORE_INDEX_MAX;
 
+byte StoreValueUpdatedFlags = 0xFF;
+
 // Stepper Motor
 #define STEPPER_MOTOR_PULSE_PIN 9
 #define STEPPER_MOTOR_DIR_PIN   8
@@ -53,8 +63,9 @@ byte VarIndex = STORE_INDEX_MAX;
 //
 //****************************************************************************************
 
-int motorSpeedMax = 0;// скорость максимальная
-int motorSpeedMin = 0; // скорость минимальная 
+byte motorSpeedMax = 0;// скорость максимальная
+byte motorSpeedMin = 0; // скорость минимальная 
+byte motorSpeedCurrent = 0;
 int t1 = 0; // выставляемая пользователем температура теплоносителя
 int T_max_avar = 0;  // температура отключения мотора верхняя
 int T_min_avar = 0;  // температура отключения мотора нижняя
@@ -69,7 +80,6 @@ bool StartButtonPressed = false; //кнопка ПУСК
 
 Thread ledThread = Thread(); // создаём поток управления светодиодом
 Thread soundThread = Thread(); // создаём поток управления 
-Thread blinkThread = Thread(); // создаём поток мигания курсором
 
 /* Pin to interrupt map:
 * D0-D7 = PCINT 16-23 = PCIR2 = PD = PCIE2 = pcmsk2
@@ -379,6 +389,29 @@ void CheckLimitStoreVar()
 }
 
 /*********************************************************************/
+void SaveUpdatedVarToStoreVar() 
+{
+  // Store prev updated value
+  if (VarIndex < STORE_INDEX_MAX)
+  {
+    const byte OldValue = EEPROM.read(VarIndex);
+    Serial.print(" Old value:"); 
+    Serial.print(OldValue, 10); 
+    if (StoreCurrentValue != OldValue)
+    {
+      Serial.print(" Write new value:"); 
+      Serial.print(StoreCurrentValue, 10); 
+            
+      EEPROM.write(VarIndex, StoreCurrentValue);
+
+      // MArk this Index as updated - it need to be displayed with new value;
+      StoreValueUpdatedFlags |= 1 << VarIndex;
+    }
+    Serial.println();
+  }
+}
+
+/*********************************************************************/
 void UpdateVarWithStoreVar()
 {
   switch(VarIndex)
@@ -392,6 +425,8 @@ void UpdateVarWithStoreVar()
     case STORE_TEMP_GIST:       GST = StoreCurrentValue; break;
     default: break;
   }
+
+  SaveUpdatedVarToStoreVar();
 }
 
 /*********************************************************************/
@@ -412,9 +447,6 @@ void loop()
     if (soundThread.shouldRun())
         soundThread.run(); // запускаем поток
 
-    if (blinkThread.shouldRun())
-        blinkThread.run(); // запускаем поток
-    
   switch (GetEncoderStateISR()) 
   {
     case eNone: return;
@@ -445,7 +477,7 @@ void loop()
       {
         Serial.print("Knob pressed. Old index:"); 
         Serial.print(VarIndex, 10); 
-        
+#if 0        
         // Store prev updated value
         if (VarIndex < STORE_INDEX_MAX)
         {
@@ -460,7 +492,7 @@ void loop()
             EEPROM.write(VarIndex, StoreCurrentValue);
           }
         }
-
+#endif
         Serial.println();
         
         ++VarIndex;
@@ -477,6 +509,8 @@ void loop()
           StoreCurrentValue = EEPROM.read(VarIndex);
           Serial.println(StoreCurrentValue, 10); 
         }
+          
+        StoreValueUpdatedFlags = 0xFF;
       }
   }
 
@@ -550,55 +584,91 @@ void PrintMarker(const byte Index)
 /*********************************************************************/
 void sound() 
 { 
-  lcd.setCursor(0,0);  
-  lcd.print("Vmax=    ");
-  lcd.setCursor(5,0);  
-  lcd.print(motorSpeedMax);
-  PrintMarker(STORE_FUEL_SPEED_MAX);
-     
-  lcd.setCursor(0,1); 
-  lcd.print("Vmin=    ");
-  lcd.setCursor(5,1);  
-  lcd.print(motorSpeedMin);
-  PrintMarker(STORE_FUEL_SPEED_MIN);
-     
-  lcd.setCursor(13,0);  
-  lcd.print("t1=    ");
-  lcd.setCursor(16,0);  
-  lcd.print(t1);
-  PrintMarker(STORE_TARGET_TEMP);
+  lcd.setBacklight(255);
 
-  lcd.setCursor(0,2);
-  lcd.print("Tmax");
-  lcd.setCursor(1,3); 
-  lcd.print("    "); 
-  lcd.setCursor(1,3); 
-  lcd.print(T_max_avar);
-  PrintMarker(STORE_MOTOR_MAX);
-                   
-  lcd.setCursor(5,2);  
-  lcd.print("Tmin");
-  lcd.setCursor(6,3);  
-  lcd.print("    ");
-  lcd.setCursor(6,3); 
-  lcd.print(T_min_avar);
-  PrintMarker(STORE_MOTOR_MIN);
-      
-  lcd.setCursor(10,2);  
-  lcd.print("t3");
-  lcd.setCursor(10,3);  
-  lcd.print("   ");
-  lcd.setCursor(10,3);  
-  lcd.print(t3);
-  PrintMarker(STORE_TEMP_MAX);
+  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
+  {
+    lcd.setCursor(0,0);  
+    lcd.print("Vmax=   ");
+    lcd.setCursor(5,0);  
+    lcd.print(motorSpeedMax);
+    PrintMarker(STORE_FUEL_SPEED_MAX);
+    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MAX);
+  }
+ 
+  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MIN))
+  {
+    lcd.setCursor(0,1); 
+    lcd.print("Vmin=   ");
+    lcd.setCursor(5,1);  
+    lcd.print(motorSpeedMin);
+    PrintMarker(STORE_FUEL_SPEED_MIN);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MIN);
+  }
      
-  lcd.setCursor(13,2);  
-  lcd.print("Gst");
-  lcd.setCursor(14,3); 
-  lcd.print("   "); 
-  lcd.setCursor(14,3); 
-  lcd.print(GST);
-  PrintMarker(STORE_TEMP_GIST);
+  if (StoreValueUpdatedFlags & (1 << STORE_TARGET_TEMP))
+  {
+    lcd.setCursor(13,0);  
+    lcd.print("t1=   ");
+    lcd.setCursor(16,0);  
+    lcd.print(t1);
+    PrintMarker(STORE_TARGET_TEMP);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TARGET_TEMP);
+  }
+
+  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MAX))
+  {
+    lcd.setCursor(0,2);
+    lcd.print("Tmax");
+    lcd.setCursor(1,3); 
+    lcd.print("    "); 
+    lcd.setCursor(1,3); 
+    lcd.print(T_max_avar);
+    PrintMarker(STORE_MOTOR_MAX);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MAX);
+  }
+                   
+  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MIN))
+  {
+    lcd.setCursor(5,2);  
+    lcd.print("Tmin");
+    lcd.setCursor(6,3);  
+    lcd.print("    ");
+    lcd.setCursor(6,3); 
+    lcd.print(T_min_avar);
+    PrintMarker(STORE_MOTOR_MIN);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MIN);
+  }
+      
+  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_MAX))
+  {
+    lcd.setCursor(10,2);  
+    lcd.print("t3");
+    lcd.setCursor(10,3);  
+    lcd.print("   ");
+    lcd.setCursor(10,3);  
+    lcd.print(t3);
+    PrintMarker(STORE_TEMP_MAX);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_MAX);
+  }
+     
+  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_GIST))
+  {
+    lcd.setCursor(13,2);  
+    lcd.print("Gst");
+    lcd.setCursor(14,3); 
+    lcd.print("   "); 
+    lcd.setCursor(14,3); 
+    lcd.print(GST);
+    PrintMarker(STORE_TEMP_GIST);
+    
+    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_GIST);
+  }
 
 
   //-----
@@ -614,23 +684,32 @@ void sound()
   {
     t2 = TempWater.getNewTemp();
     tout = TempExOut.getNewTemp();
+
+//    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
 /*
-    HeatTemp.Add(float(millis())/1000.0, TempWater.getLastFloatTemp());
+    HeatTemp.Add(TempWater.getLastTempRaw());
 
     if (HeatTemp.Num() > 5)
     {
       const bool Ok = HeatTemp.SolveLSM();
       if (Ok && HeatTemp.Xmax() != 0)
       {
+        Serial.print("a2=");
+        Serial.print(HeatTemp.a2());
+        Serial.print(",a1=");
+        Serial.print(HeatTemp.a1());
+        Serial.print(",a0=");
+        Serial.print(HeatTemp.a0());
         Serial.print("Xmax=");
         Serial.print(HeatTemp.Xmax());
-        Serial.print(",In=");
-        Serial.print(HeatTemp.XmaxIn());
         Serial.print(",Ymax=");
         Serial.println(HeatTemp.Ymax());
       }
     }
 */
+/*
+    WaterTempMean.Add(TempWater.getNewTempRaw())
+*/    
     Serial.print("Out(");
     if (TempExOut.IsPresent())
       Serial.print("P");
@@ -646,8 +725,11 @@ void sound()
       Serial.print("W");
     Serial.print(") temp=");
     Serial.println(t2);
-
-    lcd.setBacklight(255);
+/*
+    Serial.print(" Mean water temp=");
+    Serial.println(float(WaterTempMean.Calc()) / 16.0);
+*/
+//    lcd.setBacklight(255);
 
     lcd.setCursor(13,1);  
     lcd.print("t2=     ");
@@ -664,7 +746,7 @@ void sound()
     lcd.setCursor(17,2);  
     lcd.print("to");
     lcd.setCursor(17,3);  
-    lcd.print("    ");
+    lcd.print("   ");
     lcd.setCursor(17,3);  
     if (!TempExOut.IsPresent())
       lcd.print("--");
@@ -676,6 +758,9 @@ void sound()
     s_LastTempUpdate = CurrTime;
   }
 
+  if (!TempWater.IsWorking())
+    return;
+    
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
@@ -684,18 +769,38 @@ void sound()
      
   if (StartButtonPressed) 
   {
+//    HM.AddTemp(t2);
+    const byte MotorSpeedLast = motorSpeedCurrent;
+    
     if (t2<t1-GST) 
     {
-      const int motorSpeed = motorSpeedMax * SteppingMotorHz; //включается максимальная скорость ШД
-      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
+      motorSpeedCurrent = motorSpeedMax;
     }
      
     if (t2>=t1+GST) 
     {
-      const int motorSpeed = motorSpeedMin * SteppingMotorHz; //включается минимальная скорость ШД
+      motorSpeedCurrent = motorSpeedMin;
+    }
+
+    // Limit motor speed to be in actual speed ranges
+//    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
+
+    if (motorSpeedCurrent != MotorSpeedLast)
+    {
+      const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
       tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
+
+      Serial.print("Motor Speed=");
+      Serial.println(motorSpeedCurrent);
     }
   }
+
+    // Motor speed current
+    lcd.setCursor(8,0);  
+    lcd.print("     ");
+    lcd.setCursor(9,0);
+    lcd.print(motorSpeedCurrent);
+
 
   if (IsMaxTempReached)
   {

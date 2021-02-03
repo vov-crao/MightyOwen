@@ -29,6 +29,7 @@ public:
   byte GetResolutionBits();
   
   int getLastTemp() const;
+  int getLastTempRaw() const;
   float getLastFloatTemp() const;
   int getNewTemp();
   bool newMeasure(bool IsAsync = true);
