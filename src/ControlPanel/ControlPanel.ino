@@ -1,8 +1,15 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
+#if 0
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
+#else
+#include <Wire.h>
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h> // include i/o class header 
+hd44780_I2Cexp lcd(0x27);
+#endif
 
 #include <EEPROM.h>
 
