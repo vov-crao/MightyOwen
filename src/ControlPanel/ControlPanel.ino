@@ -16,13 +16,13 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 #define BLINKING_LED_PIN 13
 
 // Temperature sensors pins
-#define WATER_SENSOR_PIN 12
+#define WATER_SENSOR_PIN 7
 #define EXHOST_SENSOR_PIN 10
 
 // Encoder buttons on pins
-#define ENCODER_A_PIN 4
-#define ENCODER_B_PIN 5
-#define ENCODER_C_PIN 6
+#define ENCODER_A_PIN 2
+#define ENCODER_B_PIN 3
+#define ENCODER_C_PIN 4
 
 enum eEncoderState {eNone, eLeft, eRight, eButton};
 bool ButtonPrev;
@@ -475,7 +475,10 @@ void setup()
     // pin change interrupt 2 is enabled 
     PCICR |= (1 << PCIE2);
     ///TODO: Add detecting PCINT numbers from pins
-    PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
+    // pins 4,5,6
+    // PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
+    // pins 2,3,4
+    PCMSK2 = (1<<PCINT18) | (1<<PCINT19); // Encoder left/right buttons
 }
 
 byte StoreCurrentValue = 0;
@@ -672,7 +675,7 @@ void sound()
   if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
   {
     lcd.setCursor(0,0);  
-    lcd.print("Vmax=   ");
+    lcd.print("Vmax=    ");
     lcd.setCursor(5,0);  
     lcd.print(motorSpeedMax);
     PrintMarker(STORE_FUEL_SPEED_MAX);
@@ -848,8 +851,8 @@ void sound()
   }
 
     // Motor speed current
-    lcd.setCursor(8,0);  
-    lcd.print("     ");
+    lcd.setCursor(9,0);  
+    lcd.print("    ");
     lcd.setCursor(9,0);
     lcd.print(motorSpeedCurrent);
 
