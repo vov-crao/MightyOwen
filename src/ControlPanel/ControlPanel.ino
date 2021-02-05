@@ -672,7 +672,7 @@ void sound()
   if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
   {
     lcd.setCursor(0,0);  
-    lcd.print("Vmax=   ");
+    lcd.print("Vmax=    ");
     lcd.setCursor(5,0);  
     lcd.print(motorSpeedMax);
     PrintMarker(STORE_FUEL_SPEED_MAX);
@@ -848,8 +848,8 @@ void sound()
   }
 
     // Motor speed current
-    lcd.setCursor(8,0);  
-    lcd.print("     ");
+    lcd.setCursor(9,0);  
+    lcd.print("    ");
     lcd.setCursor(9,0);
     lcd.print(motorSpeedCurrent);
 
