@@ -116,7 +116,7 @@ ds18b20::ds18b20(const byte Pin, const eResolution Resolution)
 bool ds18b20::newMeasure(bool IsAsync)
 {
   bool IsPOR = false;
-  for (byte i = 0; i < 25; i++)
+  for (byte i = 0; i < 5; i++)
   {
     m_IsWorking = false;
     m_IsPresent = false;
