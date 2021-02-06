@@ -678,9 +678,6 @@ void PrintValueOn1Line(const byte Col, const byte Row, const char* Descr, const 
   {
     lcd.setCursor(Col, Row);  
     lcd.print(Descr);
-//    for (byte Index = 0; Index < ValueWidth; Index++)
-//      lcd.print(' ');
-//    lcd.setCursor(5,0);  
 
     byte Offset = lcd.print(Value);
     Offset += PrintMarker(Index);
@@ -717,104 +714,14 @@ void sound()
   lcd.setBacklight(255);
 
   PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
-/*    
-    lcd.setCursor(0,0);  
-    lcd.print("Vmax=    ");
-    lcd.setCursor(5,0);  
-    lcd.print(motorSpeedMax);
-    PrintMarker(STORE_FUEL_SPEED_MAX);
-    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MAX);
-*/    
-  
- 
   PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MIN))
-  {
-    lcd.setCursor(0,1); 
-    lcd.print("Vmin=   ");
-    lcd.setCursor(5,1);  
-    lcd.print(motorSpeedMin);
-    PrintMarker(STORE_FUEL_SPEED_MIN);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MIN);
-  }
-*/     
-
   PrintValueOn1Line(13, 0, "t1=", t1, 3, STORE_TARGET_TEMP);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_TARGET_TEMP))
-  {
-    lcd.setCursor(13,0);  
-    lcd.print("t1=   ");
-    lcd.setCursor(16,0);  
-    lcd.print(t1);
-    PrintMarker(STORE_TARGET_TEMP);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TARGET_TEMP);
-  }
-*/
 
   PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MAX))
-  {
-    lcd.setCursor(0,2);
-    lcd.print("Tmax");
-    lcd.setCursor(1,3); 
-    lcd.print("    "); 
-    lcd.setCursor(1,3); 
-    lcd.print(T_max_avar);
-    PrintMarker(STORE_MOTOR_MAX);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MAX);
-  }
-*/                   
   PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MIN))
-  {
-    lcd.setCursor(5,2);  
-    lcd.print("Tmin");
-    lcd.setCursor(6,3);  
-    lcd.print("    ");
-    lcd.setCursor(6,3); 
-    lcd.print(T_min_avar);
-    PrintMarker(STORE_MOTOR_MIN);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MIN);
-  }
- */     
   PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_MAX))
-  {
-    lcd.setCursor(10,2);  
-    lcd.print("t3");
-    lcd.setCursor(10,3);  
-    lcd.print("   ");
-    lcd.setCursor(10,3);  
-    lcd.print(t3);
-    PrintMarker(STORE_TEMP_MAX);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_MAX);
-  }
-*/     
   PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
-/*  
-  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_GIST))
-  {
-    lcd.setCursor(13,2);  
-    lcd.print("Gst");
-    lcd.setCursor(14,3); 
-    lcd.print("   "); 
-    lcd.setCursor(14,3); 
-    lcd.print(GST);
-    PrintMarker(STORE_TEMP_GIST);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_GIST);
-  }
-*/
+
   //-----
   static unsigned long s_NextTempUpdate = 0;
 
