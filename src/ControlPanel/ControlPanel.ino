@@ -1,7 +1,7 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
-#if 0
+#if 1
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 #else
