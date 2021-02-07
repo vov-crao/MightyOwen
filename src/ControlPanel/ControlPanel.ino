@@ -730,20 +730,41 @@ void PrintValueOn2Line(const byte Col, const byte Row, const char* Descr, const 
   }
 }
 
+const byte SCREEN_INDEX_MAIN  = 0;
+const byte SCREEN_INDEX_MOTOR_TEST1  = 1;
+
+byte ScreenIndex = SCREEN_INDEX_MAIN;
+
 /*********************************************************************/
-void sound() 
+void PrintScreen() 
 { 
   lcd.setBacklight(255);
 
-  PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
-  PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
-  PrintValueOn1Line(13, 0, "t1=", t1, 3, STORE_TARGET_TEMP);
+  if (ScreenIndex == SCREEN_INDEX_MAIN)
+  {
+    PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+    PrintValueOn1Line(13, 0, "t1=", t1, 3, STORE_TARGET_TEMP);
 
-  PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
-  PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
-  PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
-  PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+    PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
+    PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
+    PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
+    PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+  }
+  else if (ScreenIndex == SCREEN_INDEX_MOTOR_TEST1)
+  {
+    PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+    PrintValueOn1Line(9, 0, "Vh=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(9, 1, "Vl=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+  }
+}
 
+/*********************************************************************/
+void sound() 
+{ 
+  PrintScreen();
+  
   //-----
   static unsigned long s_NextTempUpdate = 0;
 
@@ -767,15 +788,18 @@ void sound()
     Serial.print(") temp=");
     Serial.println(t2);
 
-    lcd.setCursor(13,1);  
-    lcd.print("t2=     ");
-    lcd.setCursor(16,1);
-    if (!TempWater.IsPresent())
-      lcd.print("--");
-    else if (!TempWater.IsWorking())
-      lcd.print("??");
-    else
-      lcd.print(t2);
+    if (ScreenIndex == SCREEN_INDEX_MAIN)
+    {
+      lcd.setCursor(13,1);  
+      lcd.print("t2=     ");
+      lcd.setCursor(16,1);
+      if (!TempWater.IsPresent())
+        lcd.print("--");
+      else if (!TempWater.IsWorking())
+        lcd.print("??");
+      else
+        lcd.print(t2);
+    }
 
     s_NextTempUpdate = CurrTime + 1000;
   }
@@ -791,7 +815,6 @@ void sound()
       digitalWrite(START_LED_PIN, HIGH);
 
       SetMotorSpeed(0);
-//      tone(STEPPER_MOTOR_PULSE_PIN, 0);
 
       g_LastTimeWorkingTemp = CurrTime;
 
@@ -832,13 +855,6 @@ void sound()
     if (motorSpeedCurrent != MotorSpeedLast)
     {
       SetMotorSpeed(motorSpeedCurrent);
-/*      
-      const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
-      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
-
-      Serial.print("Motor Speed=");
-      Serial.println(motorSpeedCurrent);
-*/      
     }
   }
 
@@ -855,8 +871,7 @@ void sound()
     {
       SetMotorSpeed(0);
       
-//      tone(STEPPER_MOTOR_PULSE_PIN, 0); 
-      Serial.println("ALL is BAD!! Emergency EXIT!!");
+      Serial.println("ALL is BAD!! Emergency STOP!!");
       exit(0);
     } 
   }
