@@ -441,6 +441,26 @@ void readStorageValues()
 }
 
 /*********************************************************************/
+void SetMotorSpeed(const byte NewSpeed) 
+{ 
+  motorSpeedCurrent = NewSpeed;
+  if (motorSpeedCurrent == 0)
+  {
+    noTone(STEPPER_MOTOR_PULSE_PIN);
+
+    Serial.println("STOP MOTOR!!");
+  }
+  else
+  {
+    const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
+    tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
+
+    Serial.print("Motor Speed=");
+    Serial.println(motorSpeedCurrent);
+  }
+}
+
+/*********************************************************************/
 void setup() 
 {
   Serial.begin(9600);
@@ -472,7 +492,9 @@ void setup()
   
   pinMode(STEPPER_MOTOR_DIR_PIN, OUTPUT);      
   pinMode(STEPPER_MOTOR_PULSE_PIN, OUTPUT); 
-  
+
+  SetMotorSpeed(0);
+
   pinMode(BLINKING_LED_PIN, OUTPUT);
      
     ledThread.onRun(ledBlink);  // назначаем потоку задачу
@@ -821,7 +843,7 @@ void sound()
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
-      tone(STEPPER_MOTOR_PULSE_PIN, 0);
+      SetMotorSpeed(0);
 
       g_LastTimeWorkingTemp = CurrTime;
 
@@ -861,11 +883,7 @@ void sound()
 
     if (motorSpeedCurrent != MotorSpeedLast)
     {
-      const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
-      tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
-
-      Serial.print("Motor Speed=");
-      Serial.println(motorSpeedCurrent);
+      SetMotorSpeed(motorSpeedCurrent);
     }
   }
 
@@ -880,7 +898,8 @@ void sound()
   {
     if ((t2 >= T_max_avar) || (t2 <= T_min_avar))  
     {
-      tone(STEPPER_MOTOR_PULSE_PIN, 0); 
+      SetMotorSpeed(0);
+      
       Serial.println("ALL is BAD!! Emergency EXIT!!");
       exit(0);
     } 
