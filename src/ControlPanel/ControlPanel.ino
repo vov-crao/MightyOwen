@@ -6,6 +6,10 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #include <EEPROM.h>
 
+#define VERSION_MAJOR 1
+#define VERSION_MIDDLE 0
+#define VERSION_MINOR 0
+
 // Start button
 #define START_BUTTON_PIN 11
 
@@ -221,6 +225,18 @@ float ds18b20::getLastFloatTemp() const
 ds18b20 TempWater(WATER_SENSOR_PIN);
 
 //****************************************************************************************
+void printVersion() 
+{
+  Serial.print("Software version: "); 
+  Serial.print(int(VERSION_MAJOR)); 
+  Serial.print("."); 
+  Serial.print(int(VERSION_MIDDLE)); 
+  Serial.print("."); 
+  Serial.print(int(VERSION_MINOR)); 
+  Serial.println(); 
+}
+
+//****************************************************************************************
 
 /* Pin to interrupt map:
 * D0-D7 = PCINT 16-23 = PCIR2 = PD = PCIE2 = pcmsk2
@@ -429,6 +445,9 @@ void setup()
 {
   Serial.begin(9600);
 
+  // SW version
+  printVersion();
+  
   // Fix EEPROM for correctness
   fixStorageToCorrectValues();
 
