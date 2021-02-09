@@ -1,17 +1,14 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
-#if 1
 #include <LiquidCrystal_I2C.h> // библиотека для 4 строчного дисплея
 LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
-#else
-#include <Wire.h>
-#include <hd44780.h>
-#include <hd44780ioClass/hd44780_I2Cexp.h> // include i/o class header 
-hd44780_I2Cexp lcd(0x27);
-#endif
 
 #include <EEPROM.h>
+
+#define VERSION_MAJOR 1
+#define VERSION_MIDDLE 0
+#define VERSION_MINOR 1
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -23,13 +20,13 @@ hd44780_I2Cexp lcd(0x27);
 #define BLINKING_LED_PIN 13
 
 // Temperature sensors pins
-#define WATER_SENSOR_PIN 12
+#define WATER_SENSOR_PIN 7
 #define EXHOST_SENSOR_PIN 10
 
 // Encoder buttons on pins
-#define ENCODER_A_PIN 4
-#define ENCODER_B_PIN 5
-#define ENCODER_C_PIN 6
+#define ENCODER_A_PIN 2
+#define ENCODER_B_PIN 3
+#define ENCODER_C_PIN 4
 
 enum eEncoderState {eNone, eLeft, eRight, eButton};
 bool ButtonPrev;
@@ -226,6 +223,18 @@ float ds18b20::getLastFloatTemp() const
 //****************************************************************************************
 
 ds18b20 TempWater(WATER_SENSOR_PIN);
+
+//****************************************************************************************
+void printVersion() 
+{
+  Serial.print("Software version: "); 
+  Serial.print(int(VERSION_MAJOR)); 
+  Serial.print("."); 
+  Serial.print(int(VERSION_MIDDLE)); 
+  Serial.print("."); 
+  Serial.print(int(VERSION_MINOR)); 
+  Serial.println(); 
+}
 
 //****************************************************************************************
 
@@ -456,6 +465,9 @@ void setup()
 {
   Serial.begin(9600);
 
+  // SW version
+  printVersion();
+  
   // Fix EEPROM for correctness
   fixStorageToCorrectValues();
 
@@ -504,7 +516,10 @@ void setup()
     // pin change interrupt 2 is enabled 
     PCICR |= (1 << PCIE2);
     ///TODO: Add detecting PCINT numbers from pins
-    PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
+    // pins 4,5,6
+    // PCMSK2 = (1<<PCINT20) | (1<<PCINT21); // Encoder left/right buttons
+    // pins 2,3,4
+    PCMSK2 = (1<<PCINT18) | (1<<PCINT19); // Encoder left/right buttons
 }
 
 byte StoreCurrentValue = 0;
