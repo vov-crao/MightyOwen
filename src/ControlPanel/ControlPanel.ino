@@ -816,6 +816,9 @@ void sound()
         lcd.print(t2);
     }
 
+    // Update full screen periodically
+    StoreValueUpdatedFlags = 0xFF;
+
     s_NextTempUpdate = CurrTime + 1000;
   }
 
