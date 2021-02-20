@@ -72,6 +72,92 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 
 //****************************************************************************************
+class SerialLog
+{
+public:
+  static inline 
+  void begin(const int SpeedBaud)
+  {
+    Serial.begin(SpeedBaud);
+  }
+  
+  template <typename T>
+  inline
+  SerialLog& operator <<(const T& V)
+  {
+    Serial.print(V);
+    return *this;
+  }
+
+};
+
+//****************************************************************************************
+class NL
+{
+};
+
+/*********************************************************************/
+template<>
+SerialLog& SerialLog::operator << <NL>(const NL&)
+{
+  Serial.println();
+  return *this;
+}
+
+//****************************************************************************************
+class T
+{
+};
+
+/*********************************************************************/
+template<>
+SerialLog& SerialLog::operator << <T>(const T&)
+{
+  const unsigned long time = millis();
+  const byte sec = (time / 1000) % 60;
+  const byte min = (time / 60 / 1000) % 60;
+  const byte hour = (time / 60 / 60 / 1000) % 24;
+  const byte day = time / 24 / 60 / 60 / 1000;
+  if (day)
+  {
+    Serial.print(day);
+    Serial.print("d ");
+  }
+
+  if (hour < 10)
+    Serial.print('0');
+  Serial.print(hour);
+  Serial.print(":");
+
+  if (min < 10)
+    Serial.print('0');
+  Serial.print(min);
+  Serial.print(":");
+
+  if (sec < 10)
+    Serial.print('0');
+  Serial.print(sec);
+  Serial.print(".");
+
+  const int ms = time % 1000;
+
+  if (ms < 10)
+    Serial.print("00");
+  else if (ms < 100)
+    Serial.print('0');
+
+  Serial.print(ms);
+
+  Serial.print(" | ");
+
+  return *this;
+}
+
+/*********************************************************************/
+
+SerialLog LOG;
+
+//****************************************************************************************
 #include <OneWire.h>
 
 class ds18b20
@@ -227,13 +313,7 @@ ds18b20 TempWater(WATER_SENSOR_PIN);
 //****************************************************************************************
 void printVersion() 
 {
-  Serial.print("Software version: "); 
-  Serial.print(int(VERSION_MAJOR)); 
-  Serial.print("."); 
-  Serial.print(int(VERSION_MIDDLE)); 
-  Serial.print("."); 
-  Serial.print(int(VERSION_MINOR)); 
-  Serial.println(); 
+  LOG << T() << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
 }
 
 //****************************************************************************************
@@ -360,21 +440,18 @@ byte g_DefaultLimits[] =
 /*********************************************************************/
 void resetStorageToFactoryDefaults() 
 {
-  Serial.println("Restore Factory Defaults:"); 
+  LOG << T() << "Restore Factory Defaults:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
     const byte Value = g_DefaultFactory[i];
-    
-    Serial.print(" ");
-    Serial.print(i);
-    Serial.print("="); 
-    Serial.println(Value); 
-    
+
+    LOG << " " << i << "=" << Value << NL();
+
     EEPROM.write(i, Value);
   }
 
-  Serial.println("Restored Factory Defaults!");
+  LOG << T() << "Restored Factory Defaults!" << NL();
 }
 
 /*********************************************************************/
@@ -382,39 +459,30 @@ bool fixStorageToCorrectValues()
 {
   bool Ok = true;
   
-  Serial.println("Fix EEPROM to correct:"); 
+  LOG << T() << "Fix EEPROM to correct:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
     const byte Value = EEPROM.read(i);
     const byte Min = g_DefaultLimits[i*2];
     const byte Max = g_DefaultLimits[i*2+1];
-    
-    Serial.print(" ");
-    Serial.print(i);
-    Serial.print("="); 
-    Serial.print(Value); 
-    Serial.print(" "); 
-    Serial.print(Min); 
-    Serial.print("<"); 
-    Serial.println(Max); 
+
+    LOG << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
 
     if ((Value < Min) || (Value > Max))
     {
-      Serial.println("  Wrong!"); 
+      LOG << "  Wrong!" << NL(); 
 
       const byte NewValue = g_DefaultFactory[i];
-  
-      Serial.print(i);
-      Serial.print("<="); 
-      Serial.println(NewValue); 
-      
+
+      LOG << i << "<=" << NewValue << NL();
+
       EEPROM.write(i, NewValue);
       Ok = false;
     }
   }
 
-  Serial.println(Ok ? "Ok!" : "Fixed!");
+  LOG << T() << (Ok ? "Ok!" : "Fixed!") << NL();
 
   return Ok;
 }
@@ -448,15 +516,14 @@ void SetMotorSpeed(const byte NewSpeed)
   {
     noTone(STEPPER_MOTOR_PULSE_PIN);
 
-    Serial.println("STOP MOTOR!!");
+    LOG << T() << "STOP MOTOR!!" << NL();
   }
   else
   {
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    Serial.print("Motor Speed=");
-    Serial.println(motorSpeedCurrent);
+    LOG << T() << "Motor Speed=" << motorSpeedCurrent << NL();
   }
 }
 
@@ -581,19 +648,18 @@ void SaveUpdatedVarToStoreVar()
   if (VarIndex < STORE_INDEX_MAX)
   {
     const byte OldValue = EEPROM.read(VarIndex);
-    Serial.print(" Old value:"); 
-    Serial.print(OldValue, 10); 
+    LOG << T() << " Old value:" << OldValue;
+
     if (StoreCurrentValue != OldValue)
     {
-      Serial.print(" Write new value:"); 
-      Serial.print(StoreCurrentValue, 10); 
+      LOG << " Write new value:" << StoreCurrentValue;
             
       EEPROM.write(VarIndex, StoreCurrentValue);
 
       // MArk this Index as updated - it need to be displayed with new value;
       StoreValueUpdatedFlags |= 1 << VarIndex;
     }
-    Serial.println();
+    LOG << NL();
   }
 }
 
@@ -624,9 +690,23 @@ void loop()
       StartButtonPressed = true;  
       // Start LED off
       digitalWrite(START_LED_PIN, LOW); 
-      Serial.println("Start button pressed"); 
+      LOG << T() << "Start button pressed" << NL(); 
     }
-    
+/*
+    if (Serial.available() > 0)
+    {
+      int Symbol = 0;
+      Symbol = Serial.read();
+      Serial.print("#>");
+      Serial.println(Symbol, HEX);
+      if (Symbol == 0x30)
+      {
+        StartButtonPressed = true;
+        digitalWrite(START_LED_PIN, LOW); 
+        Serial.println("Start button pressed"); 
+      }
+    }
+*/    
     if (ledThread.shouldRun())
         ledThread.run(); // запускаем поток
     
@@ -640,8 +720,7 @@ void loop()
     case eLeft: 
       {
         StoreCurrentValue--;
-        Serial.print("Left turn:"); 
-        Serial.println(StoreCurrentValue, 10); 
+        LOG << T() << "Left turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -651,8 +730,7 @@ void loop()
       {
         StoreCurrentValue++;
 
-        Serial.print("Right turn:"); 
-        Serial.println(StoreCurrentValue, 10); 
+        LOG << T() << "Right turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -661,23 +739,19 @@ void loop()
     // Pressed Encoder button
     case eButton: 
       {
-        Serial.print("Knob pressed. Old index:"); 
-        Serial.print(VarIndex, 10); 
-        Serial.println();
+        LOG << T() << "Knob pressed. Old index:" << VarIndex << NL();
         
         ++VarIndex;
 
         if (VarIndex > STORE_INDEX_MAX)
           VarIndex = 0;
-        
-        Serial.print(" New index:"); 
-        Serial.println(VarIndex, 10); 
+
+        LOG << " New index:" << VarIndex << NL();
 
         if (VarIndex < STORE_INDEX_MAX)
         {
-          Serial.print(" ee value:"); 
           StoreCurrentValue = EEPROM.read(VarIndex);
-          Serial.println(StoreCurrentValue, 10); 
+          LOG << " ee value:" << StoreCurrentValue << NL();
         }
           
         StoreValueUpdatedFlags = 0xFF;
@@ -697,106 +771,89 @@ void ledBlink()
 }
 
 /*********************************************************************/
-void PrintMarker(const byte Index)
+byte PrintMarker(const byte Index)
 {
   if (VarIndex == Index) 
   {
     if (StoreCurrentValue == EEPROM.read(VarIndex))
-      lcd.print("<");    
-    else
-      lcd.print("*");
+      return lcd.print("<");    
+    return lcd.print("*");
+  }
+  return lcd.print(" ");
+}
+
+/*********************************************************************/
+void PrintValueOn1Line(const byte Col, const byte Row, const char* Descr, const int Value, const byte ValueWidth, const byte Index)
+{
+  if (StoreValueUpdatedFlags & (1 << Index))
+  {
+    lcd.setCursor(Col, Row);  
+    lcd.print(Descr);
+
+    byte Offset = lcd.print(Value);
+    Offset += PrintMarker(Index);
+    
+    for (; Offset < ValueWidth; Offset++)
+      lcd.print(' ');
+      
+    StoreValueUpdatedFlags &= ~(1 << Index);
+  }
+}
+
+/*********************************************************************/
+void PrintValueOn2Line(const byte Col, const byte Row, const char* Descr, const int Value, const byte ValueWidth, const byte Index, const byte Shift = 1)
+{
+  if (StoreValueUpdatedFlags & (1 << Index))
+  {
+    lcd.setCursor(Col, Row);  
+    lcd.print(Descr);
+    lcd.setCursor(Col+Shift, Row+1);  
+
+    byte Offset = lcd.print(Value);
+    Offset += PrintMarker(Index);
+    
+    for (; Offset < ValueWidth; Offset++)
+      lcd.print(' ');
+      
+    StoreValueUpdatedFlags &= ~(1 << Index);
+  }
+}
+
+const byte SCREEN_INDEX_MAIN  = 0;
+const byte SCREEN_INDEX_MOTOR_TEST1  = 1;
+
+byte ScreenIndex = SCREEN_INDEX_MAIN;
+
+/*********************************************************************/
+void PrintScreen() 
+{ 
+  lcd.setBacklight(255);
+
+  if (ScreenIndex == SCREEN_INDEX_MAIN)
+  {
+    PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+    PrintValueOn1Line(13, 0, "t1=", t1, 3, STORE_TARGET_TEMP);
+
+    PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
+    PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
+    PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
+    PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+  }
+  else if (ScreenIndex == SCREEN_INDEX_MOTOR_TEST1)
+  {
+    PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+    PrintValueOn1Line(9, 0, "Vh=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
+    PrintValueOn1Line(9, 1, "Vl=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
   }
 }
 
 /*********************************************************************/
 void sound() 
 { 
-  lcd.setBacklight(255);
-
-  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MAX))
-  {
-    lcd.setCursor(0,0);  
-    lcd.print("Vmax=    ");
-    lcd.setCursor(5,0);  
-    lcd.print(motorSpeedMax);
-    PrintMarker(STORE_FUEL_SPEED_MAX);
-    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MAX);
-  }
- 
-  if (StoreValueUpdatedFlags & (1 << STORE_FUEL_SPEED_MIN))
-  {
-    lcd.setCursor(0,1); 
-    lcd.print("Vmin=   ");
-    lcd.setCursor(5,1);  
-    lcd.print(motorSpeedMin);
-    PrintMarker(STORE_FUEL_SPEED_MIN);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_FUEL_SPEED_MIN);
-  }
-     
-  if (StoreValueUpdatedFlags & (1 << STORE_TARGET_TEMP))
-  {
-    lcd.setCursor(13,0);  
-    lcd.print("t1=   ");
-    lcd.setCursor(16,0);  
-    lcd.print(t1);
-    PrintMarker(STORE_TARGET_TEMP);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TARGET_TEMP);
-  }
-
-  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MAX))
-  {
-    lcd.setCursor(0,2);
-    lcd.print("Tmax");
-    lcd.setCursor(1,3); 
-    lcd.print("    "); 
-    lcd.setCursor(1,3); 
-    lcd.print(T_max_avar);
-    PrintMarker(STORE_MOTOR_MAX);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MAX);
-  }
-                   
-  if (StoreValueUpdatedFlags & (1 << STORE_MOTOR_MIN))
-  {
-    lcd.setCursor(5,2);  
-    lcd.print("Tmin");
-    lcd.setCursor(6,3);  
-    lcd.print("    ");
-    lcd.setCursor(6,3); 
-    lcd.print(T_min_avar);
-    PrintMarker(STORE_MOTOR_MIN);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_MOTOR_MIN);
-  }
-      
-  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_MAX))
-  {
-    lcd.setCursor(10,2);  
-    lcd.print("t3");
-    lcd.setCursor(10,3);  
-    lcd.print("   ");
-    lcd.setCursor(10,3);  
-    lcd.print(t3);
-    PrintMarker(STORE_TEMP_MAX);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_MAX);
-  }
-     
-  if (StoreValueUpdatedFlags & (1 << STORE_TEMP_GIST))
-  {
-    lcd.setCursor(13,2);  
-    lcd.print("Gst");
-    lcd.setCursor(14,3); 
-    lcd.print("   "); 
-    lcd.setCursor(14,3); 
-    lcd.print(GST);
-    PrintMarker(STORE_TEMP_GIST);
-    
-    StoreValueUpdatedFlags &= ~(1 << STORE_TEMP_GIST);
-  }
-
+  PrintScreen();
+  
   //-----
   static unsigned long s_NextTempUpdate = 0;
 
@@ -812,23 +869,25 @@ void sound()
       g_LastTimeWorkingTemp = CurrTime;
     }
 
-    Serial.print("Water(");
+    LOG << T() << "Water(";
     if (TempWater.IsPresent())
-      Serial.print("P");
+      LOG << "P";
     if (TempWater.IsWorking())
-      Serial.print("W");
-    Serial.print(") temp=");
-    Serial.println(t2);
+      LOG << "W";
+    LOG << ") temp=" << t2 << NL();
 
-    lcd.setCursor(13,1);  
-    lcd.print("t2=     ");
-    lcd.setCursor(16,1);
-    if (!TempWater.IsPresent())
-      lcd.print("--");
-    else if (!TempWater.IsWorking())
-      lcd.print("??");
-    else
-      lcd.print(t2);
+    if (ScreenIndex == SCREEN_INDEX_MAIN)
+    {
+      lcd.setCursor(13,1);  
+      lcd.print("t2=     ");
+      lcd.setCursor(16,1);
+      if (!TempWater.IsPresent())
+        lcd.print("--");
+      else if (!TempWater.IsWorking())
+        lcd.print("??");
+      else
+        lcd.print(t2);
+    }
 
     // Update full screen periodically
     StoreValueUpdatedFlags = 0xFF;
@@ -842,7 +901,7 @@ void sound()
   {
     if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
     {
-      Serial.println("Temp sensor is out of order for 20 sec. STOP MOTOR!");
+      LOG << T() << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
@@ -857,7 +916,7 @@ void sound()
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
-    Serial.println("MAX temp!");
+    LOG << T() << "MAX temp!" << NL();
   } 
      
   if (StartButtonPressed) 
@@ -903,7 +962,7 @@ void sound()
     {
       SetMotorSpeed(0);
       
-      Serial.println("ALL is BAD!! Emergency EXIT!!");
+      LOG << T() << "ALL is BAD!! Emergency STOP!!" << NL();
       exit(0);
     } 
   }
