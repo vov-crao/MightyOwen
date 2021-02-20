@@ -863,9 +863,11 @@ void sound()
   {
     const byte tw = TempWater.getNewTemp();
 
+    float T2 = t2;
     if (TempWater.IsWorking())
     {
       t2 = tw;
+      T2 = TempWater.getLastFloatTemp();
       g_LastTimeWorkingTemp = CurrTime;
     }
 
@@ -874,7 +876,7 @@ void sound()
       LOG << "P";
     if (TempWater.IsWorking())
       LOG << "W";
-    LOG << ") temp=" << t2 << NL();
+    LOG << ") temp=" << T2 << NL();
 
     if (ScreenIndex == SCREEN_INDEX_MAIN)
     {
