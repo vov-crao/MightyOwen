@@ -104,6 +104,55 @@ SerialLog& SerialLog::operator << <NL>(const NL&)
   return *this;
 }
 
+//****************************************************************************************
+class T
+{
+};
+
+/*********************************************************************/
+template<>
+SerialLog& SerialLog::operator << <T>(const T&)
+{
+  const unsigned long time = millis();
+  const byte sec = (time / 1000) % 60;
+  const byte min = (time / 60 / 1000) % 60;
+  const byte hour = (time / 60 / 60 / 1000) % 24;
+  const byte day = time / 24 / 60 / 60 / 1000;
+  if (day)
+  {
+    Serial.print(day);
+    Serial.print("d ");
+  }
+
+  if (hour < 10)
+    Serial.print('0');
+  Serial.print(hour);
+  Serial.print(":");
+
+  if (min < 10)
+    Serial.print('0');
+  Serial.print(min);
+  Serial.print(":");
+
+  if (sec < 10)
+    Serial.print('0');
+  Serial.print(sec);
+  Serial.print(".");
+
+  const int ms = time % 1000;
+
+  if (ms < 10)
+    Serial.print("00");
+  else if (ms < 100)
+    Serial.print('0');
+
+  Serial.print(ms);
+
+  Serial.print(" | ");
+
+  return *this;
+}
+
 /*********************************************************************/
 
 SerialLog LOG;
@@ -264,7 +313,7 @@ ds18b20 TempWater(WATER_SENSOR_PIN);
 //****************************************************************************************
 void printVersion() 
 {
-  LOG << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
+  LOG << T() << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
 }
 
 //****************************************************************************************
@@ -391,7 +440,7 @@ byte g_DefaultLimits[] =
 /*********************************************************************/
 void resetStorageToFactoryDefaults() 
 {
-  LOG << "Restore Factory Defaults:" << NL(); 
+  LOG << T() << "Restore Factory Defaults:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
@@ -402,7 +451,7 @@ void resetStorageToFactoryDefaults()
     EEPROM.write(i, Value);
   }
 
-  LOG << "Restored Factory Defaults!" << NL();
+  LOG << T() << "Restored Factory Defaults!" << NL();
 }
 
 /*********************************************************************/
@@ -410,7 +459,7 @@ bool fixStorageToCorrectValues()
 {
   bool Ok = true;
   
-  LOG << "Fix EEPROM to correct:" << NL(); 
+  LOG << T() << "Fix EEPROM to correct:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
@@ -433,7 +482,7 @@ bool fixStorageToCorrectValues()
     }
   }
 
-  LOG << (Ok ? "Ok!" : "Fixed!") << NL();
+  LOG << T() << (Ok ? "Ok!" : "Fixed!") << NL();
 
   return Ok;
 }
@@ -467,14 +516,14 @@ void SetMotorSpeed(const byte NewSpeed)
   {
     noTone(STEPPER_MOTOR_PULSE_PIN);
 
-    LOG << "STOP MOTOR!!" << NL();
+    LOG << T() << "STOP MOTOR!!" << NL();
   }
   else
   {
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    LOG << "Motor Speed=" << motorSpeedCurrent << NL();
+    LOG << T() << "Motor Speed=" << motorSpeedCurrent << NL();
   }
 }
 
@@ -599,7 +648,7 @@ void SaveUpdatedVarToStoreVar()
   if (VarIndex < STORE_INDEX_MAX)
   {
     const byte OldValue = EEPROM.read(VarIndex);
-    LOG << " Old value:" << OldValue;
+    LOG << T() << " Old value:" << OldValue;
 
     if (StoreCurrentValue != OldValue)
     {
@@ -641,7 +690,7 @@ void loop()
       StartButtonPressed = true;  
       // Start LED off
       digitalWrite(START_LED_PIN, LOW); 
-      LOG << "Start button pressed" << NL(); 
+      LOG << T() << "Start button pressed" << NL(); 
     }
 /*
     if (Serial.available() > 0)
@@ -671,7 +720,7 @@ void loop()
     case eLeft: 
       {
         StoreCurrentValue--;
-        LOG << "Left turn:" << StoreCurrentValue << NL();
+        LOG << T() << "Left turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -681,7 +730,7 @@ void loop()
       {
         StoreCurrentValue++;
 
-        LOG << "Right turn:" << StoreCurrentValue << NL();
+        LOG << T() << "Right turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -690,7 +739,7 @@ void loop()
     // Pressed Encoder button
     case eButton: 
       {
-        LOG << "Knob pressed. Old index:" << VarIndex << NL();
+        LOG << T() << "Knob pressed. Old index:" << VarIndex << NL();
         
         ++VarIndex;
 
@@ -820,7 +869,7 @@ void sound()
       g_LastTimeWorkingTemp = CurrTime;
     }
 
-    LOG << "Water(";
+    LOG << T() << "Water(";
     if (TempWater.IsPresent())
       LOG << "P";
     if (TempWater.IsWorking())
@@ -852,7 +901,7 @@ void sound()
   {
     if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
     {
-      LOG << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
+      LOG << T() << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
@@ -867,7 +916,7 @@ void sound()
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
-    LOG << "MAX temp!" << NL();
+    LOG << T() << "MAX temp!" << NL();
   } 
      
   if (StartButtonPressed) 
@@ -913,7 +962,7 @@ void sound()
     {
       SetMotorSpeed(0);
       
-      LOG << "ALL is BAD!! Emergency STOP!!" << NL();
+      LOG << T() << "ALL is BAD!! Emergency STOP!!" << NL();
       exit(0);
     } 
   }
