@@ -72,6 +72,43 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 
 //****************************************************************************************
+class SerialLog
+{
+public:
+  static inline 
+  void begin(const int SpeedBaud)
+  {
+    Serial.begin(SpeedBaud);
+  }
+  
+  template <typename T>
+  inline
+  SerialLog& operator <<(const T& V)
+  {
+    Serial.print(V);
+    return *this;
+  }
+
+};
+
+//****************************************************************************************
+class NL
+{
+};
+
+/*********************************************************************/
+template<>
+SerialLog& SerialLog::operator << <NL>(const NL&)
+{
+  Serial.println();
+  return *this;
+}
+
+/*********************************************************************/
+
+SerialLog LOG;
+
+//****************************************************************************************
 #include <OneWire.h>
 
 class ds18b20
@@ -227,13 +264,7 @@ ds18b20 TempWater(WATER_SENSOR_PIN);
 //****************************************************************************************
 void printVersion() 
 {
-  Serial.print("Software version: "); 
-  Serial.print(int(VERSION_MAJOR)); 
-  Serial.print("."); 
-  Serial.print(int(VERSION_MIDDLE)); 
-  Serial.print("."); 
-  Serial.print(int(VERSION_MINOR)); 
-  Serial.println(); 
+  LOG << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
 }
 
 //****************************************************************************************
@@ -360,21 +391,18 @@ byte g_DefaultLimits[] =
 /*********************************************************************/
 void resetStorageToFactoryDefaults() 
 {
-  Serial.println("Restore Factory Defaults:"); 
+  LOG << "Restore Factory Defaults:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
     const byte Value = g_DefaultFactory[i];
-    
-    Serial.print(" ");
-    Serial.print(i);
-    Serial.print("="); 
-    Serial.println(Value); 
-    
+
+    LOG << " " << i << "=" << Value << NL();
+
     EEPROM.write(i, Value);
   }
 
-  Serial.println("Restored Factory Defaults!");
+  LOG << "Restored Factory Defaults!" << NL();
 }
 
 /*********************************************************************/
@@ -382,39 +410,30 @@ bool fixStorageToCorrectValues()
 {
   bool Ok = true;
   
-  Serial.println("Fix EEPROM to correct:"); 
+  LOG << "Fix EEPROM to correct:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
     const byte Value = EEPROM.read(i);
     const byte Min = g_DefaultLimits[i*2];
     const byte Max = g_DefaultLimits[i*2+1];
-    
-    Serial.print(" ");
-    Serial.print(i);
-    Serial.print("="); 
-    Serial.print(Value); 
-    Serial.print(" "); 
-    Serial.print(Min); 
-    Serial.print("<"); 
-    Serial.println(Max); 
+
+    LOG << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
 
     if ((Value < Min) || (Value > Max))
     {
-      Serial.println("  Wrong!"); 
+      LOG << "  Wrong!" << NL(); 
 
       const byte NewValue = g_DefaultFactory[i];
-  
-      Serial.print(i);
-      Serial.print("<="); 
-      Serial.println(NewValue); 
-      
+
+      LOG << i << "<=" << NewValue << NL();
+
       EEPROM.write(i, NewValue);
       Ok = false;
     }
   }
 
-  Serial.println(Ok ? "Ok!" : "Fixed!");
+  LOG << (Ok ? "Ok!" : "Fixed!") << NL();
 
   return Ok;
 }
@@ -448,15 +467,14 @@ void SetMotorSpeed(const byte NewSpeed)
   {
     noTone(STEPPER_MOTOR_PULSE_PIN);
 
-    Serial.println("STOP MOTOR!!");
+    LOG << "STOP MOTOR!!" << NL();
   }
   else
   {
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    Serial.print("Motor Speed=");
-    Serial.println(motorSpeedCurrent);
+    LOG << "Motor Speed=" << motorSpeedCurrent << NL();
   }
 }
 
@@ -581,19 +599,18 @@ void SaveUpdatedVarToStoreVar()
   if (VarIndex < STORE_INDEX_MAX)
   {
     const byte OldValue = EEPROM.read(VarIndex);
-    Serial.print(" Old value:"); 
-    Serial.print(OldValue, 10); 
+    LOG << " Old value:" << OldValue;
+
     if (StoreCurrentValue != OldValue)
     {
-      Serial.print(" Write new value:"); 
-      Serial.print(StoreCurrentValue, 10); 
+      LOG << " Write new value:" << StoreCurrentValue;
             
       EEPROM.write(VarIndex, StoreCurrentValue);
 
       // MArk this Index as updated - it need to be displayed with new value;
       StoreValueUpdatedFlags |= 1 << VarIndex;
     }
-    Serial.println();
+    LOG << NL();
   }
 }
 
@@ -624,9 +641,23 @@ void loop()
       StartButtonPressed = true;  
       // Start LED off
       digitalWrite(START_LED_PIN, LOW); 
-      Serial.println("Start button pressed"); 
+      LOG << "Start button pressed" << NL(); 
     }
-    
+/*
+    if (Serial.available() > 0)
+    {
+      int Symbol = 0;
+      Symbol = Serial.read();
+      Serial.print("#>");
+      Serial.println(Symbol, HEX);
+      if (Symbol == 0x30)
+      {
+        StartButtonPressed = true;
+        digitalWrite(START_LED_PIN, LOW); 
+        Serial.println("Start button pressed"); 
+      }
+    }
+*/    
     if (ledThread.shouldRun())
         ledThread.run(); // запускаем поток
     
@@ -640,8 +671,7 @@ void loop()
     case eLeft: 
       {
         StoreCurrentValue--;
-        Serial.print("Left turn:"); 
-        Serial.println(StoreCurrentValue, 10); 
+        LOG << "Left turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -651,8 +681,7 @@ void loop()
       {
         StoreCurrentValue++;
 
-        Serial.print("Right turn:"); 
-        Serial.println(StoreCurrentValue, 10); 
+        LOG << "Right turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -661,23 +690,19 @@ void loop()
     // Pressed Encoder button
     case eButton: 
       {
-        Serial.print("Knob pressed. Old index:"); 
-        Serial.print(VarIndex, 10); 
-        Serial.println();
+        LOG << "Knob pressed. Old index:" << VarIndex << NL();
         
         ++VarIndex;
 
         if (VarIndex > STORE_INDEX_MAX)
           VarIndex = 0;
-        
-        Serial.print(" New index:"); 
-        Serial.println(VarIndex, 10); 
+
+        LOG << " New index:" << VarIndex << NL();
 
         if (VarIndex < STORE_INDEX_MAX)
         {
-          Serial.print(" ee value:"); 
           StoreCurrentValue = EEPROM.read(VarIndex);
-          Serial.println(StoreCurrentValue, 10); 
+          LOG << " ee value:" << StoreCurrentValue << NL();
         }
           
         StoreValueUpdatedFlags = 0xFF;
@@ -795,13 +820,12 @@ void sound()
       g_LastTimeWorkingTemp = CurrTime;
     }
 
-    Serial.print("Water(");
+    LOG << "Water(";
     if (TempWater.IsPresent())
-      Serial.print("P");
+      LOG << "P";
     if (TempWater.IsWorking())
-      Serial.print("W");
-    Serial.print(") temp=");
-    Serial.println(t2);
+      LOG << "W";
+    LOG << ") temp=" << t2 << NL();
 
     if (ScreenIndex == SCREEN_INDEX_MAIN)
     {
@@ -828,7 +852,7 @@ void sound()
   {
     if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
     {
-      Serial.println("Temp sensor is out of order for 20 sec. STOP MOTOR!");
+      LOG << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
@@ -843,7 +867,7 @@ void sound()
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
-    Serial.println("MAX temp!");
+    LOG << "MAX temp!" << NL();
   } 
      
   if (StartButtonPressed) 
@@ -889,7 +913,7 @@ void sound()
     {
       SetMotorSpeed(0);
       
-      Serial.println("ALL is BAD!! Emergency STOP!!");
+      LOG << "ALL is BAD!! Emergency STOP!!" << NL();
       exit(0);
     } 
   }
