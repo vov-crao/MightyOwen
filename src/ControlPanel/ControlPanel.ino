@@ -72,23 +72,23 @@ Thread ledThread = Thread(); // создаём поток управления �
 Thread soundThread = Thread(); // создаём поток управления 
 
 //****************************************************************************************
-class SerialLog
+class SerialWriter
 {
+  bool m_IsEnabled = true;
+  
 public:
-  static inline 
-  void begin(const int SpeedBaud)
-  {
-    Serial.begin(SpeedBaud);
-  }
+  SerialWriter(bool IsEnabled)
+    : m_IsEnabled(IsEnabled)
+  {}
   
   template <typename T>
-  inline
-  SerialLog& operator <<(const T& V)
+  inline SerialWriter& operator <<(const T& V)
   {
-    Serial.print(V);
+    if (m_IsEnabled)
+      Serial.print(V);
+      
     return *this;
   }
-
 };
 
 //****************************************************************************************
@@ -98,9 +98,11 @@ class NL
 
 /*********************************************************************/
 template<>
-SerialLog& SerialLog::operator << <NL>(const NL&)
+SerialWriter& SerialWriter::operator << <NL>(const NL&)
 {
-  Serial.println();
+  if (m_IsEnabled)
+    Serial.println();
+    
   return *this;
 }
 
@@ -111,8 +113,11 @@ class T
 
 /*********************************************************************/
 template<>
-SerialLog& SerialLog::operator << <T>(const T&)
+SerialWriter& SerialWriter::operator << <T>(const T&)
 {
+  if (!m_IsEnabled)
+    return *this;
+
   const unsigned long time = millis();
   const byte sec = (time / 1000) % 60;
   const byte min = (time / 60 / 1000) % 60;
@@ -152,6 +157,62 @@ SerialLog& SerialLog::operator << <T>(const T&)
 
   return *this;
 }
+
+//****************************************************************************************
+typedef enum : byte
+{
+    NON = 0
+  , FATAL
+  , ERROR
+  , WARNING
+  , INFO
+  , DEBUG
+  , MAX_VERBOSITY
+} eVerbosity;
+
+/*********************************************************************/
+eVerbosity g_VerbosityLevel = DEBUG;
+
+/*********************************************************************/
+const char* strVerbosity(const eVerbosity V)
+{
+  switch (V)
+  {
+    case NON: return "NON";
+    case FATAL: return "FATAL";
+    case ERROR: return "ERR";
+    case WARNING: return "WARN";
+    case INFO: return "INFO";
+    case DEBUG: return "DEBUG";
+    case MAX_VERBOSITY: return "MAX";
+  }
+  return "?";
+}
+
+//****************************************************************************************
+class SerialLog
+{
+public:
+  static inline
+  SerialWriter debug() { return SerialWriter(IsEnabled(DEBUG)); }
+  SerialWriter info()  { return SerialWriter(IsEnabled(INFO)); }
+  SerialWriter warn()  { return SerialWriter(IsEnabled(WARNING)); }
+  SerialWriter err()   { return SerialWriter(IsEnabled(ERROR)); }
+  SerialWriter fatal() { return SerialWriter(IsEnabled(FATAL)); }
+  SerialWriter all()   { return SerialWriter(true); }
+
+  void decrementVerbosity()
+  {
+    g_VerbosityLevel = static_cast<eVerbosity>((static_cast<byte>(g_VerbosityLevel) + static_cast<byte>(MAX_VERBOSITY) - 1) % static_cast<byte>(MAX_VERBOSITY));
+  }
+  
+private:
+  static inline
+  bool IsEnabled(const eVerbosity Verb) 
+  {
+    return Verb <= g_VerbosityLevel;
+  }
+};
 
 /*********************************************************************/
 
@@ -313,7 +374,7 @@ ds18b20 TempWater(WATER_SENSOR_PIN);
 //****************************************************************************************
 void printVersion() 
 {
-  LOG << T() << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
+  LOG.info() << T() << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
 }
 
 //****************************************************************************************
@@ -440,18 +501,18 @@ byte g_DefaultLimits[] =
 /*********************************************************************/
 void resetStorageToFactoryDefaults() 
 {
-  LOG << T() << "Restore Factory Defaults:" << NL(); 
+  LOG.fatal() << T() << "Restore Factory Defaults:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
     const byte Value = g_DefaultFactory[i];
 
-    LOG << " " << i << "=" << Value << NL();
+    LOG.fatal() << " " << i << "=" << Value << NL();
 
     EEPROM.write(i, Value);
   }
 
-  LOG << T() << "Restored Factory Defaults!" << NL();
+  LOG.fatal() << T() << "Restored Factory Defaults!" << NL();
 }
 
 /*********************************************************************/
@@ -459,7 +520,7 @@ bool fixStorageToCorrectValues()
 {
   bool Ok = true;
   
-  LOG << T() << "Fix EEPROM to correct:" << NL(); 
+  LOG.debug() << T() << "Fix EEPROM to correct:" << NL(); 
   
   for (byte i = 0; i < STORE_INDEX_MAX; i++)
   {
@@ -467,22 +528,22 @@ bool fixStorageToCorrectValues()
     const byte Min = g_DefaultLimits[i*2];
     const byte Max = g_DefaultLimits[i*2+1];
 
-    LOG << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
+    LOG.debug() << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
 
     if ((Value < Min) || (Value > Max))
     {
-      LOG << "  Wrong!" << NL(); 
+      LOG.debug() << "  Wrong!" << NL(); 
 
       const byte NewValue = g_DefaultFactory[i];
 
-      LOG << i << "<=" << NewValue << NL();
+      LOG.debug() << i << "<=" << NewValue << NL();
 
       EEPROM.write(i, NewValue);
       Ok = false;
     }
   }
 
-  LOG << T() << (Ok ? "Ok!" : "Fixed!") << NL();
+  LOG.debug() << T() << (Ok ? "Ok!" : "Fixed!") << NL();
 
   return Ok;
 }
@@ -516,14 +577,14 @@ void SetMotorSpeed(const byte NewSpeed)
   {
     noTone(STEPPER_MOTOR_PULSE_PIN);
 
-    LOG << T() << "STOP MOTOR!!" << NL();
+    LOG.info() << T() << "STOP MOTOR!!" << NL();
   }
   else
   {
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    LOG << T() << "Motor Speed=" << motorSpeedCurrent << NL();
+    LOG.info() << T() << "Motor Speed=" << motorSpeedCurrent << NL();
   }
 }
 
@@ -648,18 +709,18 @@ void SaveUpdatedVarToStoreVar()
   if (VarIndex < STORE_INDEX_MAX)
   {
     const byte OldValue = EEPROM.read(VarIndex);
-    LOG << T() << " Old value:" << OldValue;
+    LOG.info() << T() << " Old value:" << OldValue;
 
     if (StoreCurrentValue != OldValue)
     {
-      LOG << " Write new value:" << StoreCurrentValue;
+      LOG.info() << " Write new value:" << StoreCurrentValue;
             
       EEPROM.write(VarIndex, StoreCurrentValue);
 
       // MArk this Index as updated - it need to be displayed with new value;
       StoreValueUpdatedFlags |= 1 << VarIndex;
     }
-    LOG << NL();
+    LOG.info() << NL();
   }
 }
 
@@ -690,7 +751,7 @@ void loop()
       StartButtonPressed = true;  
       // Start LED off
       digitalWrite(START_LED_PIN, LOW); 
-      LOG << T() << "Start button pressed" << NL(); 
+      LOG.all() << T() << "Start button pressed" << NL(); 
     }
 /*
     if (Serial.available() > 0)
@@ -720,7 +781,7 @@ void loop()
     case eLeft: 
       {
         StoreCurrentValue--;
-        LOG << T() << "Left turn:" << StoreCurrentValue << NL();
+        LOG.debug() << T() << "Left turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -730,7 +791,7 @@ void loop()
       {
         StoreCurrentValue++;
 
-        LOG << T() << "Right turn:" << StoreCurrentValue << NL();
+        LOG.debug() << T() << "Right turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
         break;
@@ -739,19 +800,19 @@ void loop()
     // Pressed Encoder button
     case eButton: 
       {
-        LOG << T() << "Knob pressed. Old index:" << VarIndex << NL();
+        LOG.debug() << T() << "Knob pressed. Old index:" << VarIndex << NL();
         
         ++VarIndex;
 
         if (VarIndex > STORE_INDEX_MAX)
           VarIndex = 0;
 
-        LOG << " New index:" << VarIndex << NL();
+        LOG.debug() << " New index:" << VarIndex << NL();
 
         if (VarIndex < STORE_INDEX_MAX)
         {
           StoreCurrentValue = EEPROM.read(VarIndex);
-          LOG << " ee value:" << StoreCurrentValue << NL();
+          LOG.debug() << " ee value:" << StoreCurrentValue << NL();
         }
           
         StoreValueUpdatedFlags = 0xFF;
@@ -871,12 +932,12 @@ void sound()
       g_LastTimeWorkingTemp = CurrTime;
     }
 
-    LOG << T() << "Water(";
+    LOG.info() << T() << "Water(";
     if (TempWater.IsPresent())
-      LOG << "P";
+      LOG.info() << "P";
     if (TempWater.IsWorking())
-      LOG << "W";
-    LOG << ") temp=" << T2 << NL();
+      LOG.info() << "W";
+    LOG.info() << ") temp=" << T2 << NL();
 
     if (ScreenIndex == SCREEN_INDEX_MAIN)
     {
@@ -903,7 +964,7 @@ void sound()
   {
     if (g_LastTimeWorkingTemp + 20000ul < CurrTime)
     {
-      LOG << T() << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
+      LOG.err() << T() << "Temp sensor is out of order for 20 sec. STOP MOTOR!" << NL();
       StartButtonPressed = false;
       digitalWrite(START_LED_PIN, HIGH);
 
@@ -918,7 +979,7 @@ void sound()
   if (t2 >= t3) 
   {
     IsMaxTempReached = true;
-    LOG << T() << "MAX temp!" << NL();
+    LOG.info() << T() << "MAX temp!" << NL();
   } 
      
   if (StartButtonPressed) 
@@ -964,7 +1025,7 @@ void sound()
     {
       SetMotorSpeed(0);
       
-      LOG << T() << "ALL is BAD!! Emergency STOP!!" << NL();
+      LOG.fatal() << T() << "ALL is BAD!! Emergency STOP!!" << NL();
       exit(0);
     } 
   }
