@@ -8,7 +8,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #define VERSION_MAJOR 1
 #define VERSION_MIDDLE 0
-#define VERSION_MINOR 2
+#define VERSION_MINOR 5
 
 // Start button
 #define START_BUTTON_PIN 11
@@ -56,9 +56,9 @@ const byte STORE_SCREEN_PID_MAX     = 12;
 
 // MOTOR SCREEN
 const byte STORE_SCREEN_MOTOR_MIN   = 13;
-const byte STORE_MOTOR_mL_TURN_4 = 13;
-const byte STORE_MOTOR_LOAD_L_2  = 17;
-const byte STORE_SCREEN_MOTOR_MAX   = 19;
+const byte STORE_MOTOR_IMP_mL_2 = 13;      // Impulses of the step driver per 1 milliLiter of the oil
+const byte STORE_MOTOR_LOAD_L_2  = 15;
+const byte STORE_SCREEN_MOTOR_MAX   = 17;
 
 // END SCREENS
 
@@ -114,6 +114,13 @@ byte PID_T = 0;
 byte PID_M = 0;
 byte PID_BLOCKS = 1;
 byte PID_AUTO = 0;
+
+// SCREEN MOTOR
+
+word Motor_Imp_mLiter = 0;  // Impulses of the step driver per 1 milliLiter of the oil
+word Motor_Fuel = 0;        // Litres taken from the tank
+
+//****************************************************************************************
 
 const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
 bool IsMaxTempReached = false;
@@ -364,6 +371,86 @@ float ds18b20::getLastFloatTemp() const
 ds18b20 TempWater(WATER_SENSOR_PIN);
 
 //****************************************************************************************
+//
+class MeasureMotor
+{
+  unsigned long m_LastUpdateMS = 0;
+  unsigned long m_LoadUL = 0; // Load in microlitres
+  unsigned int m_MotorHz = 0;
+
+public:
+  void MotorSpeedChanged(unsigned int NewSpeed);
+  float GetFuelActual() const;
+  word GetFuel() const;
+};
+
+//****************************************************************************************
+void MeasureMotor::MotorSpeedChanged(unsigned int NewSpeed)
+{
+  const unsigned long CurrTime = millis();
+
+  if (m_LastUpdateMS)
+  {
+    long dTime = CurrTime - m_LastUpdateMS;
+
+    // wrap time
+    if (dTime < 0)
+      dTime = 0xFFFFFFFF - dTime;
+
+    // in microlitres
+    float uLitres = float(m_MotorHz) / (float)(Motor_Imp_mLiter) * dTime;
+    m_LoadUL += uLitres;
+
+    // Litres taken from the Tank
+    word LitresFromFuel = GetFuel();
+
+    LOG << T() << "FUEL. " 
+        << " uL=" << uLitres << "uL / " << dTime << "mSec " 
+        << " Take=" << m_LoadUL << "uL"
+        << " Fuel=" << LitresFromFuel << "L"
+        << NL();
+
+    if (uLitres >= 1000000)
+    {
+      const word Litres = word(uLitres / 1000000);
+      LitresFromFuel += Litres;
+      uLitres -= float(1000000) * Litres;
+
+      EEPROM.write(STORE_MOTOR_LOAD_L_2, LitresFromFuel & 0xFF);
+      EEPROM.write(STORE_MOTOR_LOAD_L_2 + 1, (LitresFromFuel >> 8) & 0xFF);
+
+      LOG << T() << "FUEL.Upd " 
+          << " uL=" << uLitres << "uL"
+          << " Fuel=" << LitresFromFuel << "L"
+          << NL();
+    }
+  }
+
+  m_LastUpdateMS = CurrTime;
+  m_MotorHz = NewSpeed;
+}
+
+//****************************************************************************************
+float MeasureMotor::GetFuelActual() const
+{
+  const word LitresFromFuel = GetFuel();
+
+  return float(LitresFromFuel) + float(m_LoadUL) / 1000000.0;
+}
+
+//****************************************************************************************
+word MeasureMotor::GetFuel() const
+{
+    const word LitresFromFuel = word(EEPROM.read(STORE_MOTOR_LOAD_L_2)) | (word(EEPROM.read(STORE_MOTOR_LOAD_L_2 + 1)) << 8);
+
+    return LitresFromFuel;
+}
+
+//****************************************************************************************
+
+MeasureMotor TankOil;
+
+//****************************************************************************************
 void printVersion() 
 {
   LOG << T() << "Software version: " << int(VERSION_MAJOR) << "." << int(VERSION_MIDDLE) << "." << int(VERSION_MINOR) << NL();
@@ -490,10 +577,8 @@ byte g_DefaultFactory[] =
   , 0
 
   // MOTOR SCREEN
-  , 0     // STORE_MOTOR_mL_TURN_4
-  , 0
-  , 0
-  , 0
+  , 0xAA  // STORE_MOTOR_IMP_mL_2: 4266
+  , 0x10
   , 0     // STORE_MOTOR_LOAD_L_2
   , 0
 };
@@ -518,6 +603,12 @@ byte g_DefaultLimits[] =
   , 0, 1      // STORE_PID_AUTO
 
   , 0, 0
+
+  // MOTOR SCREEN
+  , 0, 255    // STORE_MOTOR_IMP_mL_2
+  , 0, 255    // 
+  , 0, 255    // STORE_MOTOR_LOAD_L_2
+  , 0, 255    // 
 };
 
 /*********************************************************************/
@@ -549,12 +640,34 @@ bool fixStorageToCorrectValues()
   
   LOG << T() << "Fix EEPROM to correct:" << NL();
 
-  for (byte S = 0; S <= SCREEN_INDEX_MOTOR; S++)
+  for (byte S = 0; S < SCREEN_INDEX_MAX; S++)
   {
     LOG << "Screen:  " << S << NL();
 
     for (byte i = SCREENS_BOUNDS[2*S]; i < SCREENS_BOUNDS[2*S+1]; i++)
     {
+      if (i == STORE_MOTOR_IMP_mL_2)
+      {
+        word Value = (word(EEPROM.read(i + 1)) << 8) | word(EEPROM.read(i));
+
+        LOG << " " << i << "=" << Value << " >" << 10 << NL();
+
+        if (Value < 10)
+        {
+          LOG << "  Wrong!" << NL();
+
+          Value = 4266;
+
+          EEPROM.write(i, Value & 0xFF);
+          EEPROM.write(i + 1, (Value >> 8) & 0xFF);
+
+          LOG << i << "<=" << Value << NL();
+        }
+
+        i++;
+        continue;
+      }
+
       const byte Value = EEPROM.read(i);
       const byte Min = g_DefaultLimits[i * 2];
       const byte Max = g_DefaultLimits[i * 2 + 1];
@@ -583,7 +696,7 @@ bool fixStorageToCorrectValues()
 /*********************************************************************/
 void readStorageValues() 
 {
-  for (byte i = 0; i < STORE_SCREEN_PID_MAX; i++)
+  for (byte i = 0; i < STORE_SCREEN_MOTOR_MAX; i++)
   {
     const byte Value = EEPROM.read(i);
 
@@ -604,6 +717,10 @@ void readStorageValues()
       case STORE_PID_BLOCKS:      PID_BLOCKS = Value; break;
       case STORE_PID_AUTO:        PID_AUTO = Value; break;
 
+      // SCREEN MOTOR
+      case STORE_MOTOR_IMP_mL_2:  i++; Motor_Imp_mLiter = word(Value) | (word(EEPROM.read(i)) << 8); break;
+      case STORE_MOTOR_LOAD_L_2:  i++; Motor_Fuel = word(Value) | (word(EEPROM.read(i)) << 8); break;
+
       default: break;
     }
   }
@@ -618,6 +735,8 @@ void SetMotorSpeed(const byte NewSpeed)
     noTone(STEPPER_MOTOR_PULSE_PIN);
 
     LOG << T() << "STOP MOTOR!!" << NL();
+
+    TankOil.MotorSpeedChanged(0);
   }
   else
   {
@@ -625,6 +744,8 @@ void SetMotorSpeed(const byte NewSpeed)
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
     LOG << T() << "Motor Speed=" << motorSpeedCurrent << " " << ((PID_AUTO == 0) ? "Z" : "PID") << NL();
+
+    TankOil.MotorSpeedChanged(motorSpeed);
   }
 }
 
@@ -737,7 +858,7 @@ void CheckLimitStoreVar()
     // Screens wrap
     case STORE_SCREEN_MAIN_MAX:
       {
-        StoreCurrentValue = StoreCurrentValue % STORE_SCREEN_MAIN_MAX;
+//        StoreCurrentValue = StoreCurrentValue % STORE_SCREEN_MAIN_MAX;
         break;
       }
 
@@ -755,11 +876,16 @@ void CheckLimitStoreVar()
     // Screen PID wrap
     case STORE_SCREEN_PID_MAX:
       {
-        if (StoreCurrentValue >= STORE_SCREEN_PID_MAX)
-          StoreCurrentValue = STORE_SCREEN_PID_MIN;
-        else if (StoreCurrentValue < STORE_SCREEN_PID_MIN)
-          StoreCurrentValue = STORE_SCREEN_PID_MAX;
 
+        break;
+      }
+
+    // SCREEN MOTOR
+    //
+
+    // Screen MOTOR wrap
+    case STORE_SCREEN_MOTOR_MAX:
+      {
         break;
       }
 
@@ -775,7 +901,7 @@ void SaveUpdatedVarToStoreVar()
   {
     case STORE_SCREEN_MAIN_MAX:
     case STORE_SCREEN_PID_MAX:
-    case STORE_MOTOR_mL_TURN_4:
+    case STORE_MOTOR_IMP_mL_2:
     case STORE_MOTOR_LOAD_L_2:
     case STORE_SCREEN_MOTOR_MAX:
       return;
@@ -829,9 +955,9 @@ void SwitchScreen()
 {
   if (VarIndex == SCREENS_BOUNDS[2 * ScreenIndex + 1])
   {
-    LOG << "Screen:" << ScreenIndex << NL();
+    LOG << "Screen:" << ScreenIndex << " V=" << StoreCurrentValue << NL();
 
-    ScreenIndex = StoreCurrentValue % (SCREEN_INDEX_PID + 1);
+    ScreenIndex = StoreCurrentValue % SCREEN_INDEX_MAX;
 
     LOG << "Screen New:" << ScreenIndex << " Clear it." << NL();
 
@@ -962,6 +1088,20 @@ void PrintText(const byte Col, const byte Row, const char* Text)
 }
 
 /*********************************************************************/
+void PrintValue(const byte Col, const byte Row, const int Value)
+{
+  lcd.setCursor(Col, Row);  
+  lcd.print(Value);
+}
+
+/*********************************************************************/
+void PrintValue(const byte Col, const byte Row, const double Value, const int Digits)
+{
+  lcd.setCursor(Col, Row);  
+  lcd.print(Value, Digits);
+}
+
+/*********************************************************************/
 void PrintValueOn1Line(const byte Col, const byte Row, const char* Descr, const int Value, const byte ValueWidth, const byte Index)
 {
   if (StoreValueUpdatedFlags & (1 << Index))
@@ -1023,7 +1163,15 @@ void PrintScreen()
     PrintValueOn1Line(9, 0, "Hist=", PID_BLOCKS, 3, STORE_PID_BLOCKS);
     PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 1, STORE_PID_AUTO);
 
-    PrintText(17, 3, "PID");
+    PrintText(7, 3, "PID");
+  }
+  else if (ScreenIndex == SCREEN_INDEX_MOTOR)
+  {
+    const float L = TankOil.GetFuelActual();
+    PrintText(8, 2, "L=");
+    PrintValue(10, 2, L, 3);
+
+    PrintText(7, 3, "Motor");
   }
 }
 
@@ -1037,6 +1185,8 @@ void sound()
   //-----
   static unsigned long s_NextTempUpdate = 0;
   const unsigned long CurrTime = millis();
+
+  bool UpdatedTemp = false;
 
   float T2 = t2;
 
@@ -1074,6 +1224,7 @@ void sound()
     // Update full screen periodically
     StoreValueUpdatedFlags = 0xFFFF;
 
+    UpdatedTemp = true;
     s_NextTempUpdate = CurrTime + 1000;
   }
 
@@ -1124,7 +1275,7 @@ void sound()
         }
       }
     }
-    else
+    else if (UpdatedTemp)
     {
       // PID Auto Motor 
 
@@ -1144,7 +1295,7 @@ void sound()
 
       motorSpeedCurrent = static_cast<byte>(constrain(motorSpeed, motorSpeedMin, motorSpeedMax));
 
-      const unsigned long CurrTime = millis();
+//      const unsigned long CurrTime = millis();
       static unsigned long s_LastBlockUpdate = 0;
       static unsigned long s_M0_Sum = 0;
       static unsigned long s_M0_N = 0;
