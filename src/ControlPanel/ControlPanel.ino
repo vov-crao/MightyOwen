@@ -8,7 +8,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);  // Устанавливаем дисплей
 
 #define VERSION_MAJOR 1
 #define VERSION_MIDDLE 0
-#define VERSION_MINOR 3
+#define VERSION_MINOR 4
 
 // Start button
 #define START_BUTTON_PIN 11
