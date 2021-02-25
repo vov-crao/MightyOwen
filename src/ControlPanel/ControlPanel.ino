@@ -112,7 +112,7 @@ int t2 = 0; // температура передаваемая с термода
 // SCREEN PID
 byte PID_T = 0;
 byte PID_M = 0;
-byte PID_BLOCKS = 0;
+byte PID_BLOCKS = 1;
 byte PID_AUTO = 0;
 
 const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
@@ -484,7 +484,7 @@ byte g_DefaultFactory[] =
   // PID SCREEN
   , 50    // STORE_PID_T
   , 50    // STORE_PID_M
-  , 4     // STORE_PID_BLOCKS
+  , 30     // STORE_PID_BLOCKS
   , 0     // STORE_PID_AUTO
 
   , 0
@@ -514,7 +514,7 @@ byte g_DefaultLimits[] =
   // PID SCREEN
   , 0, 250    // STORE_PID_T
   , 0, 250    // STORE_PID_M
-  , 1, 5      // STORE_PID_BLOCKS
+  , 1, 254    // STORE_PID_BLOCKS
   , 0, 1      // STORE_PID_AUTO
 
   , 0, 0
@@ -624,7 +624,7 @@ void SetMotorSpeed(const byte NewSpeed)
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    LOG << T() << "Motor Speed=" << motorSpeedCurrent << NL();
+    LOG << T() << "Motor Speed=" << motorSpeedCurrent << " " << ((PID_AUTO == 0) ? "Z" : "PID") << NL();
   }
 }
 
@@ -955,15 +955,10 @@ byte PrintMarker(const byte Index)
 }
 
 /*********************************************************************/
-void PrintText(const byte Col, const byte Row, const char* Text, const byte Index)
+void PrintText(const byte Col, const byte Row, const char* Text)
 {
-  if (StoreValueUpdatedFlags & (1 << Index))
-  {
-    lcd.setCursor(Col, Row);  
-    lcd.print(Text);
-      
-    StoreValueUpdatedFlags &= ~(1 << Index);
-  }
+  lcd.setCursor(Col, Row);  
+  lcd.print(Text);
 }
 
 /*********************************************************************/
@@ -1019,16 +1014,20 @@ void PrintScreen()
     PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
     PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
 
-    PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A", STORE_PID_AUTO);
+    PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A");
   }
   else if (ScreenIndex == SCREEN_INDEX_PID)
   {
     PrintValueOn1Line(0, 0, "T%=", PID_T, 3, STORE_PID_T);
     PrintValueOn1Line(0, 1, "M%=", PID_M, 3, STORE_PID_M);
-    PrintValueOn1Line(9, 0, "L=", PID_BLOCKS, 3, STORE_PID_BLOCKS);
+    PrintValueOn1Line(9, 0, "Hist=", PID_BLOCKS, 3, STORE_PID_BLOCKS);
     PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 1, STORE_PID_AUTO);
+
+    PrintText(17, 3, "PID");
   }
 }
+
+//byte M0 = 0;
 
 /*********************************************************************/
 void sound() 
@@ -1037,14 +1036,14 @@ void sound()
   
   //-----
   static unsigned long s_NextTempUpdate = 0;
-
   const unsigned long CurrTime = millis();
+
+  float T2 = t2;
 
   if (CurrTime >= s_NextTempUpdate)
   {
     const byte tw = TempWater.getNewTemp();
 
-    float T2 = t2;
     if (TempWater.IsWorking())
     {
       t2 = tw;
@@ -1106,25 +1105,83 @@ void sound()
   {
     const byte MotorSpeedLast = motorSpeedCurrent;
     
-    if (t2 < t1-GST) 
+    if (PID_AUTO == 0)
     {
-      motorSpeedCurrent = motorSpeedMax;
-    }
-    else if (t2 >= t1+GST) 
-    {
-      motorSpeedCurrent = motorSpeedMin;
-    }
-    else
-    {
-      // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
-      if (motorSpeedCurrent == 0)
+      if (t2 < t1 - GST)
       {
         motorSpeedCurrent = motorSpeedMax;
       }
+      else if (t2 >= t1 + GST)
+      {
+        motorSpeedCurrent = motorSpeedMin;
+      }
+      else
+      {
+        // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
+        if (motorSpeedCurrent == 0)
+        {
+          motorSpeedCurrent = motorSpeedMax;
+        }
+      }
+    }
+    else
+    {
+      // PID Auto Motor 
+
+      static float M0 = 0;
+
+      float dT = T2 - t1;
+      float dM = motorSpeedCurrent - M0;
+      float dMSC = -dT * PID_T / 100 - dM * PID_M / 100;
+      float motorSpeed = M0 + dMSC;
+
+      LOG << T() 
+        << " PID. dT=" << dT 
+        << " dM=" << dM
+        << " dMC=" << dMSC
+        << " MS=" << motorSpeed
+        << NL();
+
+      motorSpeedCurrent = static_cast<byte>(constrain(motorSpeed, motorSpeedMin, motorSpeedMax));
+
+      const unsigned long CurrTime = millis();
+      static unsigned long s_LastBlockUpdate = 0;
+      static unsigned long s_M0_Sum = 0;
+      static unsigned long s_M0_N = 0;
+
+      s_M0_Sum += motorSpeedCurrent;
+      s_M0_N++;
+
+      // wraping millis()
+      if (CurrTime < s_LastBlockUpdate)
+      {
+        LOG << T() << "PID. WRAP millis()!" << NL();
+        s_LastBlockUpdate = 0;
+      }
+
+      if (CurrTime >= (s_LastBlockUpdate + long(1000) * PID_BLOCKS))
+      {
+        if (s_M0_N)
+          M0 = constrain(float(s_M0_Sum) / s_M0_N, motorSpeedMin, motorSpeedMax);
+        else
+          M0 = 0;
+
+        LOG << T() 
+          << "PID. Block. M0=" << M0
+          << " M0S=" << s_M0_Sum
+          << " M0N=" << s_M0_N
+          << NL();
+
+        s_M0_Sum = 0;
+        s_M0_N = 0;
+
+        s_LastBlockUpdate = CurrTime;
+      }
+
     }
 
     // Limit motor speed to be in actual speed ranges
-//    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
+    //    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
 
     if (motorSpeedCurrent != MotorSpeedLast)
     {
