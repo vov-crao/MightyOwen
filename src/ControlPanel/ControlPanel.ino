@@ -32,6 +32,11 @@ enum eEncoderState {eNone, eLeft, eRight, eButton};
 bool ButtonPrev;
 
 // EEPROM indexes of global variables
+
+//****************************************************************************************
+
+// MAIN SCREEN
+const byte STORE_SCREEN_MAIN_MIN    = 0;
 const byte STORE_FUEL_SPEED_MAX  = 0;
 const byte STORE_FUEL_SPEED_MIN  = 1;
 const byte STORE_TARGET_TEMP     = 2;
@@ -39,11 +44,51 @@ const byte STORE_MOTOR_MAX       = 3;
 const byte STORE_MOTOR_MIN       = 4;
 const byte STORE_TEMP_MAX        = 5;
 const byte STORE_TEMP_GIST       = 6;
-const byte STORE_INDEX_MAX       = 7;
+const byte STORE_SCREEN_MAIN_MAX    = 7;
 
-byte VarIndex = STORE_INDEX_MAX;
+// PID SCREEN
+const byte STORE_SCREEN_PID_MIN     = 8;
+const byte STORE_PID_T           = 8;
+const byte STORE_PID_M           = 9;
+const byte STORE_PID_BLOCKS      = 10;
+const byte STORE_PID_AUTO        = 11;
+const byte STORE_SCREEN_PID_MAX     = 12;
 
-byte StoreValueUpdatedFlags = 0xFF;
+// MOTOR SCREEN
+const byte STORE_SCREEN_MOTOR_MIN   = 13;
+const byte STORE_MOTOR_mL_TURN_4 = 13;
+const byte STORE_MOTOR_LOAD_L_2  = 17;
+const byte STORE_SCREEN_MOTOR_MAX   = 19;
+
+// END SCREENS
+
+byte SCREENS_BOUNDS[] =
+{
+  // MAIN SCREEN
+    STORE_SCREEN_MAIN_MIN
+  , STORE_SCREEN_MAIN_MAX
+
+  // PID SCREEN
+  , STORE_SCREEN_PID_MIN
+  , STORE_SCREEN_PID_MAX
+
+  // MOTOR SCREEN
+  , STORE_SCREEN_MOTOR_MIN
+  , STORE_SCREEN_MOTOR_MAX
+};
+
+const byte SCREEN_INDEX_MAIN        = 0;
+const byte SCREEN_INDEX_PID         = 1;
+const byte SCREEN_INDEX_MOTOR       = 2;
+const byte SCREEN_INDEX_MAX         = 3;
+
+byte ScreenIndex = SCREEN_INDEX_MAIN;
+
+byte VarIndex = STORE_SCREEN_MAIN_MAX; //STORE_INDEX_MAX;
+
+word StoreValueUpdatedFlags = 0xFFFF;
+
+//****************************************************************************************
 
 // Stepper Motor
 #define STEPPER_MOTOR_PULSE_PIN 9
@@ -52,6 +97,7 @@ byte StoreValueUpdatedFlags = 0xFF;
 //
 //****************************************************************************************
 
+// SCREEN MAIN
 byte motorSpeedMax = 0;// скорость максимальная
 byte motorSpeedMin = 0; // скорость минимальная 
 byte motorSpeedCurrent = 0;
@@ -62,6 +108,13 @@ int t3 = 0;           // температура включения защиты
 int GST = 0;         // Гистерезис терморегулятора
 
 int t2 = 0; // температура передаваемая с термодатчика
+
+// SCREEN PID
+byte PID_T = 0;
+byte PID_M = 0;
+byte PID_BLOCKS = 1;
+byte PID_AUTO = 0;
+
 const int SteppingMotorHz = 6400 / 5 / 10; // 6400 pulses to make full turn for 5 sec using speed 10
 bool IsMaxTempReached = false;
 bool StartButtonPressed = false; //кнопка ПУСК
@@ -417,6 +470,7 @@ eEncoderState GetEncoderStateISR()
 
 byte g_DefaultFactory[] = 
 {
+  // MAIN SCREEN
     20    // STORE_FUEL_SPEED_MAX
   , 10    // STORE_FUEL_SPEED_MIN
   , 60    // STORE_TARGET_TEMP
@@ -424,10 +478,29 @@ byte g_DefaultFactory[] =
   , 50    // STORE_MOTOR_MIN
   , 95    // STORE_TEMP_MAX
   , 4     // STORE_TEMP_GIST
+
+  , 0
+
+  // PID SCREEN
+  , 50    // STORE_PID_T
+  , 50    // STORE_PID_M
+  , 30     // STORE_PID_BLOCKS
+  , 0     // STORE_PID_AUTO
+
+  , 0
+
+  // MOTOR SCREEN
+  , 0     // STORE_MOTOR_mL_TURN_4
+  , 0
+  , 0
+  , 0
+  , 0     // STORE_MOTOR_LOAD_L_2
+  , 0
 };
 
 byte g_DefaultLimits[] = 
 {
+  // MAIN SCREEN
     11, 110   // STORE_FUEL_SPEED_MAX
   , 10, 109   // STORE_FUEL_SPEED_MIN
   , 10, 95    // STORE_TARGET_TEMP
@@ -435,20 +508,35 @@ byte g_DefaultLimits[] =
   , 25, 95    // STORE_MOTOR_MIN
   , 25, 95    // STORE_TEMP_MAX
   , 1, 10     // STORE_TEMP_GIST
+  
+  , 0, 0
+
+  // PID SCREEN
+  , 0, 250    // STORE_PID_T
+  , 0, 250    // STORE_PID_M
+  , 1, 254    // STORE_PID_BLOCKS
+  , 0, 1      // STORE_PID_AUTO
+
+  , 0, 0
 };
 
 /*********************************************************************/
 void resetStorageToFactoryDefaults() 
 {
   LOG << T() << "Restore Factory Defaults:" << NL(); 
-  
-  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+
+  for (byte S = 0; S < SCREEN_INDEX_MAX; S++)
   {
-    const byte Value = g_DefaultFactory[i];
+    LOG << "Screen:  " << S << NL();
 
-    LOG << " " << i << "=" << Value << NL();
+    for (byte i = SCREENS_BOUNDS[2*S]; i < SCREENS_BOUNDS[2*S+1]; i++)
+    {
+      const byte Value = g_DefaultFactory[i];
 
-    EEPROM.write(i, Value);
+      LOG << " " << i << "=" << Value << NL();
+
+      EEPROM.write(i, Value);
+    }
   }
 
   LOG << T() << "Restored Factory Defaults!" << NL();
@@ -459,26 +547,31 @@ bool fixStorageToCorrectValues()
 {
   bool Ok = true;
   
-  LOG << T() << "Fix EEPROM to correct:" << NL(); 
-  
-  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+  LOG << T() << "Fix EEPROM to correct:" << NL();
+
+  for (byte S = 0; S <= SCREEN_INDEX_MOTOR; S++)
   {
-    const byte Value = EEPROM.read(i);
-    const byte Min = g_DefaultLimits[i*2];
-    const byte Max = g_DefaultLimits[i*2+1];
+    LOG << "Screen:  " << S << NL();
 
-    LOG << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
-
-    if ((Value < Min) || (Value > Max))
+    for (byte i = SCREENS_BOUNDS[2*S]; i < SCREENS_BOUNDS[2*S+1]; i++)
     {
-      LOG << "  Wrong!" << NL(); 
+      const byte Value = EEPROM.read(i);
+      const byte Min = g_DefaultLimits[i * 2];
+      const byte Max = g_DefaultLimits[i * 2 + 1];
 
-      const byte NewValue = g_DefaultFactory[i];
+      LOG << " " << i << "=" << Value << " " << Min << "<" << Max << NL();
 
-      LOG << i << "<=" << NewValue << NL();
+      if ((Value < Min) || (Value > Max))
+      {
+        LOG << "  Wrong!" << NL();
 
-      EEPROM.write(i, NewValue);
-      Ok = false;
+        const byte NewValue = g_DefaultFactory[i];
+
+        LOG << i << "<=" << NewValue << NL();
+
+        EEPROM.write(i, NewValue);
+        Ok = false;
+      }
     }
   }
 
@@ -490,12 +583,13 @@ bool fixStorageToCorrectValues()
 /*********************************************************************/
 void readStorageValues() 
 {
-  for (byte i = 0; i < STORE_INDEX_MAX; i++)
+  for (byte i = 0; i < STORE_SCREEN_PID_MAX; i++)
   {
     const byte Value = EEPROM.read(i);
 
     switch (i)
     {
+      // SCREEN MAIN
       case STORE_FUEL_SPEED_MAX:  motorSpeedMax = Value; break;
       case STORE_FUEL_SPEED_MIN:  motorSpeedMin = Value; break;
       case STORE_TARGET_TEMP:     t1 = Value; break;
@@ -503,6 +597,13 @@ void readStorageValues()
       case STORE_MOTOR_MIN:       T_min_avar = Value; break;
       case STORE_TEMP_MAX:        t3 = Value; break;
       case STORE_TEMP_GIST:       GST = Value; break;
+
+      // SCREEN PID
+      case STORE_PID_T:           PID_T = Value; break;
+      case STORE_PID_M:           PID_M = Value; break;
+      case STORE_PID_BLOCKS:      PID_BLOCKS = Value; break;
+      case STORE_PID_AUTO:        PID_AUTO = Value; break;
+
       default: break;
     }
   }
@@ -523,7 +624,7 @@ void SetMotorSpeed(const byte NewSpeed)
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    LOG << T() << "Motor Speed=" << motorSpeedCurrent << NL();
+    LOG << T() << "Motor Speed=" << motorSpeedCurrent << " " << ((PID_AUTO == 0) ? "Z" : "PID") << NL();
   }
 }
 
@@ -594,14 +695,10 @@ byte StoreCurrentValue = 0;
 /*********************************************************************/
 void CheckLimitStoreVar()
 {
-  if (StoreCurrentValue < 1)
-  {
-    StoreCurrentValue = 1;
-    return;
-  }
-  
   switch(VarIndex)
   {
+    // SCREEN MAIN
+    //
     case STORE_FUEL_SPEED_MAX: 
       {
         StoreCurrentValue = constrain(StoreCurrentValue, EEPROM.read(STORE_FUEL_SPEED_MIN)+1, 110);
@@ -637,6 +734,35 @@ void CheckLimitStoreVar()
         StoreCurrentValue = constrain(StoreCurrentValue, 1, 10);
         break;
       }
+    // Screens wrap
+    case STORE_SCREEN_MAIN_MAX:
+      {
+        StoreCurrentValue = StoreCurrentValue % STORE_SCREEN_MAIN_MAX;
+        break;
+      }
+
+    // SCREEN PID
+    //
+    case STORE_PID_T:
+    case STORE_PID_M:
+    case STORE_PID_BLOCKS:
+    case STORE_PID_AUTO:
+      {
+        StoreCurrentValue = constrain(StoreCurrentValue, g_DefaultLimits[2 * VarIndex], g_DefaultLimits[2 * VarIndex + 1]);
+        break;
+      }
+
+    // Screen PID wrap
+    case STORE_SCREEN_PID_MAX:
+      {
+        if (StoreCurrentValue >= STORE_SCREEN_PID_MAX)
+          StoreCurrentValue = STORE_SCREEN_PID_MIN;
+        else if (StoreCurrentValue < STORE_SCREEN_PID_MIN)
+          StoreCurrentValue = STORE_SCREEN_PID_MAX;
+
+        break;
+      }
+
     default: break;
   }
 }
@@ -645,7 +771,16 @@ void CheckLimitStoreVar()
 void SaveUpdatedVarToStoreVar() 
 {
   // Store prev updated value
-  if (VarIndex < STORE_INDEX_MAX)
+  switch (VarIndex)
+  {
+    case STORE_SCREEN_MAIN_MAX:
+    case STORE_SCREEN_PID_MAX:
+    case STORE_MOTOR_mL_TURN_4:
+    case STORE_MOTOR_LOAD_L_2:
+    case STORE_SCREEN_MOTOR_MAX:
+      return;
+  }
+
   {
     const byte OldValue = EEPROM.read(VarIndex);
     LOG << T() << " Old value:" << OldValue;
@@ -668,6 +803,7 @@ void UpdateVarWithStoreVar()
 {
   switch(VarIndex)
   {
+    // SCREEN MAIN
     case STORE_FUEL_SPEED_MAX:  motorSpeedMax = StoreCurrentValue; break;
     case STORE_FUEL_SPEED_MIN:  motorSpeedMin = StoreCurrentValue; break;
     case STORE_TARGET_TEMP:     t1 = StoreCurrentValue; break;
@@ -675,10 +811,37 @@ void UpdateVarWithStoreVar()
     case STORE_MOTOR_MIN:       T_min_avar = StoreCurrentValue; break;
     case STORE_TEMP_MAX:        t3 = StoreCurrentValue; break;
     case STORE_TEMP_GIST:       GST = StoreCurrentValue; break;
+
+    // SCREEN PID
+    case STORE_PID_T:           PID_T = StoreCurrentValue; break;
+    case STORE_PID_M:           PID_M = StoreCurrentValue; break;
+    case STORE_PID_BLOCKS:      PID_BLOCKS = StoreCurrentValue; break;
+    case STORE_PID_AUTO:        PID_AUTO = StoreCurrentValue; break;
+
     default: break;
   }
 
   SaveUpdatedVarToStoreVar();
+}
+
+/*********************************************************************/
+void SwitchScreen()
+{
+  if (VarIndex == SCREENS_BOUNDS[2 * ScreenIndex + 1])
+  {
+    LOG << "Screen:" << ScreenIndex << NL();
+
+    ScreenIndex = StoreCurrentValue % (SCREEN_INDEX_PID + 1);
+
+    LOG << "Screen New:" << ScreenIndex << " Clear it." << NL();
+
+    VarIndex = SCREENS_BOUNDS[2 * ScreenIndex + 1];
+    StoreCurrentValue = ScreenIndex;
+
+    lcd.clear();
+
+    StoreValueUpdatedFlags = 0xFFFF;
+  }
 }
 
 /*********************************************************************/
@@ -723,6 +886,8 @@ void loop()
         LOG << T() << "Left turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
+        SwitchScreen();
+
         break;
       }
       
@@ -733,6 +898,8 @@ void loop()
         LOG << T() << "Right turn:" << StoreCurrentValue << NL();
 
         CheckLimitStoreVar();
+        SwitchScreen();
+
         break;
       }
 
@@ -743,25 +910,30 @@ void loop()
         
         ++VarIndex;
 
-        if (VarIndex > STORE_INDEX_MAX)
-          VarIndex = 0;
+        if (VarIndex > SCREENS_BOUNDS[2 * ScreenIndex + 1])
+          VarIndex = SCREENS_BOUNDS[2 * ScreenIndex];
 
         LOG << " New index:" << VarIndex << NL();
 
-        if (VarIndex < STORE_INDEX_MAX)
+        if (VarIndex < SCREENS_BOUNDS[2 * ScreenIndex + 1])
         {
           StoreCurrentValue = EEPROM.read(VarIndex);
           LOG << " ee value:" << StoreCurrentValue << NL();
         }
-          
-        StoreValueUpdatedFlags = 0xFF;
+        else if (VarIndex == SCREENS_BOUNDS[2 * ScreenIndex + 1])
+        {
+          LOG << "Screen Control:" << ScreenIndex << NL();
+
+          StoreCurrentValue = ScreenIndex;
+        }
+
+        StoreValueUpdatedFlags = 0xFFFF;
       }
   }
 
   UpdateVarWithStoreVar();
 }
 
-// Поток светодиода:
 /*********************************************************************/
 void ledBlink() 
 { 
@@ -780,6 +952,13 @@ byte PrintMarker(const byte Index)
     return lcd.print("*");
   }
   return lcd.print(" ");
+}
+
+/*********************************************************************/
+void PrintText(const byte Col, const byte Row, const char* Text)
+{
+  lcd.setCursor(Col, Row);  
+  lcd.print(Text);
 }
 
 /*********************************************************************/
@@ -819,11 +998,6 @@ void PrintValueOn2Line(const byte Col, const byte Row, const char* Descr, const 
   }
 }
 
-const byte SCREEN_INDEX_MAIN  = 0;
-const byte SCREEN_INDEX_MOTOR_TEST1  = 1;
-
-byte ScreenIndex = SCREEN_INDEX_MAIN;
-
 /*********************************************************************/
 void PrintScreen() 
 { 
@@ -839,15 +1013,21 @@ void PrintScreen()
     PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
     PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
     PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+
+    PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A");
   }
-  else if (ScreenIndex == SCREEN_INDEX_MOTOR_TEST1)
+  else if (ScreenIndex == SCREEN_INDEX_PID)
   {
-    PrintValueOn1Line(0, 0, "Vmax=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
-    PrintValueOn1Line(0, 1, "Vmin=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
-    PrintValueOn1Line(9, 0, "Vh=", motorSpeedMax, 4, STORE_FUEL_SPEED_MAX);
-    PrintValueOn1Line(9, 1, "Vl=", motorSpeedMin, 3, STORE_FUEL_SPEED_MIN);
+    PrintValueOn1Line(0, 0, "T%=", PID_T, 3, STORE_PID_T);
+    PrintValueOn1Line(0, 1, "M%=", PID_M, 3, STORE_PID_M);
+    PrintValueOn1Line(9, 0, "Hist=", PID_BLOCKS, 3, STORE_PID_BLOCKS);
+    PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 1, STORE_PID_AUTO);
+
+    PrintText(17, 3, "PID");
   }
 }
+
+//byte M0 = 0;
 
 /*********************************************************************/
 void sound() 
@@ -856,14 +1036,14 @@ void sound()
   
   //-----
   static unsigned long s_NextTempUpdate = 0;
-
   const unsigned long CurrTime = millis();
+
+  float T2 = t2;
 
   if (CurrTime >= s_NextTempUpdate)
   {
     const byte tw = TempWater.getNewTemp();
 
-    float T2 = t2;
     if (TempWater.IsWorking())
     {
       t2 = tw;
@@ -892,7 +1072,7 @@ void sound()
     }
 
     // Update full screen periodically
-    StoreValueUpdatedFlags = 0xFF;
+    StoreValueUpdatedFlags = 0xFFFF;
 
     s_NextTempUpdate = CurrTime + 1000;
   }
@@ -925,25 +1105,83 @@ void sound()
   {
     const byte MotorSpeedLast = motorSpeedCurrent;
     
-    if (t2 < t1-GST) 
+    if (PID_AUTO == 0)
     {
-      motorSpeedCurrent = motorSpeedMax;
-    }
-    else if (t2 >= t1+GST) 
-    {
-      motorSpeedCurrent = motorSpeedMin;
-    }
-    else
-    {
-      // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
-      if (motorSpeedCurrent == 0)
+      if (t2 < t1 - GST)
       {
         motorSpeedCurrent = motorSpeedMax;
       }
+      else if (t2 >= t1 + GST)
+      {
+        motorSpeedCurrent = motorSpeedMin;
+      }
+      else
+      {
+        // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
+        if (motorSpeedCurrent == 0)
+        {
+          motorSpeedCurrent = motorSpeedMax;
+        }
+      }
+    }
+    else
+    {
+      // PID Auto Motor 
+
+      static float M0 = 0;
+
+      float dT = T2 - t1;
+      float dM = motorSpeedCurrent - M0;
+      float dMSC = -dT * PID_T / 100 - dM * PID_M / 100;
+      float motorSpeed = M0 + dMSC;
+
+      LOG << T() 
+        << " PID. dT=" << dT 
+        << " dM=" << dM
+        << " dMC=" << dMSC
+        << " MS=" << motorSpeed
+        << NL();
+
+      motorSpeedCurrent = static_cast<byte>(constrain(motorSpeed, motorSpeedMin, motorSpeedMax));
+
+      const unsigned long CurrTime = millis();
+      static unsigned long s_LastBlockUpdate = 0;
+      static unsigned long s_M0_Sum = 0;
+      static unsigned long s_M0_N = 0;
+
+      s_M0_Sum += motorSpeedCurrent;
+      s_M0_N++;
+
+      // wraping millis()
+      if (CurrTime < s_LastBlockUpdate)
+      {
+        LOG << T() << "PID. WRAP millis()!" << NL();
+        s_LastBlockUpdate = 0;
+      }
+
+      if (CurrTime >= (s_LastBlockUpdate + long(1000) * PID_BLOCKS))
+      {
+        if (s_M0_N)
+          M0 = constrain(float(s_M0_Sum) / s_M0_N, motorSpeedMin, motorSpeedMax);
+        else
+          M0 = 0;
+
+        LOG << T() 
+          << "PID. Block. M0=" << M0
+          << " M0S=" << s_M0_Sum
+          << " M0N=" << s_M0_N
+          << NL();
+
+        s_M0_Sum = 0;
+        s_M0_N = 0;
+
+        s_LastBlockUpdate = CurrTime;
+      }
+
     }
 
     // Limit motor speed to be in actual speed ranges
-//    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
+    //    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
 
     if (motorSpeedCurrent != MotorSpeedLast)
     {
@@ -951,12 +1189,14 @@ void sound()
     }
   }
 
+  if (ScreenIndex == SCREEN_INDEX_MAIN)
+  {
     // Motor speed current
     lcd.setCursor(9,0);  
     lcd.print("    ");
     lcd.setCursor(9,0);
     lcd.print(motorSpeedCurrent);
-
+   }
 
   if (IsMaxTempReached)
   {
