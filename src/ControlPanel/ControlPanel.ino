@@ -955,6 +955,18 @@ byte PrintMarker(const byte Index)
 }
 
 /*********************************************************************/
+void PrintText(const byte Col, const byte Row, const char* Text, const byte Index)
+{
+  if (StoreValueUpdatedFlags & (1 << Index))
+  {
+    lcd.setCursor(Col, Row);  
+    lcd.print(Text);
+      
+    StoreValueUpdatedFlags &= ~(1 << Index);
+  }
+}
+
+/*********************************************************************/
 void PrintValueOn1Line(const byte Col, const byte Row, const char* Descr, const int Value, const byte ValueWidth, const byte Index)
 {
   if (StoreValueUpdatedFlags & (1 << Index))
@@ -1006,6 +1018,8 @@ void PrintScreen()
     PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
     PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
     PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+
+    PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A", STORE_PID_AUTO);
   }
   else if (ScreenIndex == SCREEN_INDEX_PID)
   {
