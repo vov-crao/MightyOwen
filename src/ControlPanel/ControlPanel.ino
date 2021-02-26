@@ -145,7 +145,9 @@ public:
   inline
   SerialLog& operator <<(const T& V)
   {
-    Serial.print(V);
+    if (Serial)
+      Serial.print(V);
+
     return *this;
   }
 
@@ -160,7 +162,9 @@ class NL
 template<>
 SerialLog& SerialLog::operator << <NL>(const NL&)
 {
-  Serial.println();
+  if (Serial)
+    Serial.println();
+    
   return *this;
 }
 
@@ -173,6 +177,12 @@ class T
 template<>
 SerialLog& SerialLog::operator << <T>(const T&)
 {
+  if (!Serial)
+    return *this;
+
+  char Buff[22];
+  int Offset = 0;
+
   const unsigned long time = millis();
   const byte sec = (time / 1000) % 60;
   const byte min = (time / 60 / 1000) % 60;
@@ -180,35 +190,14 @@ SerialLog& SerialLog::operator << <T>(const T&)
   const byte day = time / 24 / 60 / 60 / 1000;
   if (day)
   {
-    Serial.print(day);
-    Serial.print("d ");
+    Offset += snprintf(Buff + Offset, "%ud ", day);
   }
-
-  if (hour < 10)
-    Serial.print('0');
-  Serial.print(hour);
-  Serial.print(":");
-
-  if (min < 10)
-    Serial.print('0');
-  Serial.print(min);
-  Serial.print(":");
-
-  if (sec < 10)
-    Serial.print('0');
-  Serial.print(sec);
-  Serial.print(".");
 
   const int ms = time % 1000;
 
-  if (ms < 10)
-    Serial.print("00");
-  else if (ms < 100)
-    Serial.print('0');
+  Offset += snprintf(Buff + Offset, sizeof(Buff) - Offset, "%02u:%02u:%02u.%03u | ", hour, min, sec, ms);
 
-  Serial.print(ms);
-
-  Serial.print(" | ");
+  *this << Buff;
 
   return *this;
 }
@@ -493,13 +482,13 @@ byte MeanCyclic<BUFFER_SIZE>::GetIndex(const byte Offset) const
 template<byte BUFFER_SIZE>
 void MeanCyclic<BUFFER_SIZE>::Add(const byte V)
 {
-  LOG << T() << "Add " << t;
+  LOG << T() << "Add " << V;
 
   const byte Index = GetIndex(m_Num);
 
   LOG << " " << Index;
     
-  m_Temp[Index] = t;
+  m_Temp[Index] = V;
 
   if (m_Num >= BUFFER_SIZE)
   {
