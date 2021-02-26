@@ -450,6 +450,93 @@ word MeasureMotor::GetFuel() const
 
 MeasureMotor TankOil;
 
+/*******************************************************
+ * 
+ * 
+ * 
+ *******************************************************/
+template<byte BUFFER_SIZE>
+class MeanCyclic
+{
+  // Buffers handling
+  byte m_Temp[BUFFER_SIZE];
+
+  // Cyclic
+  byte m_StartIndex = 0;
+  byte m_Num = 0;
+
+public:
+  inline byte Num() const { return m_Num; }
+  inline byte N() const { return BUFFER_SIZE; }
+
+  byte GetIndex(const byte Offset) const;
+
+public:
+  void Add(const byte T);
+  void Reset();
+
+  float Mean() const;
+};
+
+/*********************************************************************/
+template<byte BUFFER_SIZE>
+byte MeanCyclic<BUFFER_SIZE>::GetIndex(const byte Offset) const
+{
+  byte Index = m_StartIndex + Offset;
+  if (Index >= BUFFER_SIZE)
+    Index -= BUFFER_SIZE;
+
+  return Index;
+}
+
+/*********************************************************************/
+template<byte BUFFER_SIZE>
+void MeanCyclic<BUFFER_SIZE>::Add(const byte V)
+{
+  LOG << T() << "Add " << t;
+
+  const byte Index = GetIndex(m_Num);
+
+  LOG << " " << Index;
+    
+  m_Temp[Index] = t;
+
+  if (m_Num >= BUFFER_SIZE)
+  {
+    m_StartIndex++;
+    if (m_StartIndex >= BUFFER_SIZE)
+      m_StartIndex = 0;
+  }    
+  else
+    m_Num++;
+
+  LOG << " I=" << m_StartIndex
+      << " N=" << m_Num << NL();
+}
+
+/*********************************************************************/
+template<byte BUFFER_SIZE>
+void MeanCyclic<BUFFER_SIZE>::Reset()
+{
+  m_StartIndex = 0;
+  m_Num = 0;
+}
+
+/*********************************************************************/
+template<byte BUFFER_SIZE>
+float MeanCyclic<BUFFER_SIZE>::Mean() const
+{
+  word T = 0;
+  for (byte i = 0; i < m_Num; i++)
+  {
+    const byte Index = GetIndex(i);
+    const byte t = m_Temp[Index];
+    T += t;
+  }
+
+  return float(T) / m_Num;
+}
+
 //****************************************************************************************
 void printVersion() 
 {
@@ -571,7 +658,7 @@ byte g_DefaultFactory[] =
   // PID SCREEN
   , 50    // STORE_PID_T
   , 50    // STORE_PID_M
-  , 30     // STORE_PID_BLOCKS
+  , 4     // STORE_PID_BLOCKS
   , 0     // STORE_PID_AUTO
 
   , 0
@@ -599,7 +686,7 @@ byte g_DefaultLimits[] =
   // PID SCREEN
   , 0, 250    // STORE_PID_T
   , 0, 250    // STORE_PID_M
-  , 1, 254    // STORE_PID_BLOCKS
+  , 0, 9      // STORE_PID_BLOCKS
   , 0, 1      // STORE_PID_AUTO
 
   , 0, 0
@@ -1152,22 +1239,25 @@ void PrintScreen()
     PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
     PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
     PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
-    PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
+    if (PID_AUTO == 0)
+      PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
 
     PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A");
   }
   else if (ScreenIndex == SCREEN_INDEX_PID)
   {
-    PrintValueOn1Line(0, 0, "T%=", PID_T, 3, STORE_PID_T);
-    PrintValueOn1Line(0, 1, "M%=", PID_M, 3, STORE_PID_M);
-    PrintValueOn1Line(9, 0, "Hist=", PID_BLOCKS, 3, STORE_PID_BLOCKS);
-    PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 1, STORE_PID_AUTO);
+    PrintValueOn1Line(0, 0, "T%=", PID_T, 4, STORE_PID_T);
+    PrintValueOn1Line(0, 1, "M%#", PID_M, 4, STORE_PID_M);
+    PrintValueOn1Line(9, 0, "Fore=", PID_BLOCKS, 2, STORE_PID_BLOCKS);
+    PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 2, STORE_PID_AUTO);
 
     PrintText(7, 3, "PID");
   }
   else if (ScreenIndex == SCREEN_INDEX_MOTOR)
   {
+    TankOil.MotorSpeedChanged(motorSpeedCurrent);
     const float L = TankOil.GetFuelActual();
+
     PrintText(8, 2, "L=");
     PrintValue(10, 2, L, 3);
 
@@ -1279,23 +1369,35 @@ void sound()
     {
       // PID Auto Motor 
 
-      static float M0 = 0;
+      static MeanCyclic<60> s_MeanT;
+      static MeanCyclic<60> s_MeanM;
 
-      float dT = T2 - t1;
-      float dM = motorSpeedCurrent - M0;
-      float dMSC = -dT * PID_T / 100 - dM * PID_M / 100;
-      float motorSpeed = M0 + dMSC;
+      s_MeanT.Add(t2);
+
+      const float M0 = s_MeanM.Mean();
+
+      const float Tc = s_MeanT.Mean();
+      const float dT1 = T2 - Tc;
+      const float Tx = T2 + dT1 * s_MeanT.Num() / s_MeanT.N() / 2 * PID_BLOCKS;
+      const float dT = Tx - t1;
+
+      const float dMSC = -dT * PID_T / 100;
+      const float motorSpeed = M0 + dMSC;
+
+      motorSpeedCurrent = constrain(motorSpeed, motorSpeedMin, motorSpeedMax);
+
+      s_MeanM.Add(motorSpeedCurrent);
 
       LOG << T() 
         << " PID. dT=" << dT 
-        << " dM=" << dM
-        << " dMC=" << dMSC
+        << " Tc=" << Tc
+        << " Tx=" << Tx
+        << " M0=" << M0
+        << " dMS=" << dMSC
         << " MS=" << motorSpeed
         << NL();
 
-      motorSpeedCurrent = static_cast<byte>(constrain(motorSpeed, motorSpeedMin, motorSpeedMax));
-
-//      const unsigned long CurrTime = millis();
+/*
       static unsigned long s_LastBlockUpdate = 0;
       static unsigned long s_M0_Sum = 0;
       static unsigned long s_M0_N = 0;
@@ -1328,7 +1430,7 @@ void sound()
 
         s_LastBlockUpdate = CurrTime;
       }
-
+*/
     }
 
     // Limit motor speed to be in actual speed ranges
