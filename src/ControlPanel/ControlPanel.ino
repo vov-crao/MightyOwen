@@ -51,7 +51,7 @@ const byte STORE_SCREEN_PID_MIN     = 8;
 const byte STORE_PID_T           = 8;
 const byte STORE_PID_M           = 9;
 const byte STORE_PID_BLOCKS      = 10;
-const byte STORE_PID_AUTO        = 11;
+const byte STORE_PID_MODE        = 11;
 const byte STORE_SCREEN_PID_MAX     = 12;
 
 // MOTOR SCREEN
@@ -94,6 +94,14 @@ word StoreValueUpdatedFlags = 0xFFFF;
 #define STEPPER_MOTOR_PULSE_PIN 9
 #define STEPPER_MOTOR_DIR_PIN   8
 
+enum ePIDAutoState : byte
+{ 
+    ePID_Manual = 0
+  , ePID_ZigZag
+  , ePID_HalfAuto
+  , ePID_Auto
+};
+
 //
 //****************************************************************************************
 
@@ -113,7 +121,7 @@ int t2 = 0; // температура передаваемая с термода
 byte PID_T = 0;
 byte PID_M = 0;
 byte PID_BLOCKS = 1;
-byte PID_AUTO = 0;
+byte PID_MODE = ePID_Auto;
 
 // SCREEN MOTOR
 
@@ -190,7 +198,7 @@ SerialLog& SerialLog::operator << <T>(const T&)
   const byte day = time / 24 / 60 / 60 / 1000;
   if (day)
   {
-    Offset += snprintf(Buff + Offset, "%ud ", day);
+    Offset = snprintf(Buff, sizeof(Buff), "%ud ", day);
   }
 
   const int ms = time % 1000;
@@ -526,6 +534,27 @@ float MeanCyclic<BUFFER_SIZE>::Mean() const
   return float(T) / m_Num;
 }
 
+
+//****************************************************************************************
+const char* printPIDMode(const ePIDAutoState Mode) 
+{
+  switch (Mode)
+  {
+    case ePID_Manual:   return "M";
+    case ePID_ZigZag:   return "Z";
+    case ePID_HalfAuto: return "a";
+    case ePID_Auto:     return "A";
+  }
+
+  return "?";
+}
+
+//****************************************************************************************
+const char* printPIDMode(const byte Mode) 
+{
+  return printPIDMode(*reinterpret_cast<const ePIDAutoState*>(&Mode));
+}
+
 //****************************************************************************************
 void printVersion() 
 {
@@ -645,10 +674,10 @@ byte g_DefaultFactory[] =
   , 0
 
   // PID SCREEN
-  , 50    // STORE_PID_T
+  , 30    // STORE_PID_T
   , 50    // STORE_PID_M
   , 4     // STORE_PID_BLOCKS
-  , 0     // STORE_PID_AUTO
+  , ePID_ZigZag     // STORE_PID_MODE
 
   , 0
 
@@ -676,7 +705,7 @@ byte g_DefaultLimits[] =
   , 0, 250    // STORE_PID_T
   , 0, 250    // STORE_PID_M
   , 0, 9      // STORE_PID_BLOCKS
-  , 0, 1      // STORE_PID_AUTO
+  , ePID_Manual, ePID_Auto      // STORE_PID_MODE
 
   , 0, 0
 
@@ -791,7 +820,7 @@ void readStorageValues()
       case STORE_PID_T:           PID_T = Value; break;
       case STORE_PID_M:           PID_M = Value; break;
       case STORE_PID_BLOCKS:      PID_BLOCKS = Value; break;
-      case STORE_PID_AUTO:        PID_AUTO = Value; break;
+      case STORE_PID_MODE:        PID_MODE = Value; break;
 
       // SCREEN MOTOR
       case STORE_MOTOR_IMP_mL_2:  i++; Motor_Imp_mLiter = word(Value) | (word(EEPROM.read(i)) << 8); break;
@@ -819,7 +848,7 @@ void SetMotorSpeed(const byte NewSpeed)
     const int motorSpeed = int(motorSpeedCurrent) * SteppingMotorHz;
     tone(STEPPER_MOTOR_PULSE_PIN, motorSpeed); 
 
-    LOG << T() << "Motor Speed=" << motorSpeedCurrent << " " << ((PID_AUTO == 0) ? "Z" : "PID") << NL();
+    LOG << T() << "Motor Speed=" << motorSpeedCurrent << " " << printPIDMode(PID_MODE) << NL();
 
     TankOil.MotorSpeedChanged(motorSpeed);
   }
@@ -943,7 +972,7 @@ void CheckLimitStoreVar()
     case STORE_PID_T:
     case STORE_PID_M:
     case STORE_PID_BLOCKS:
-    case STORE_PID_AUTO:
+    case STORE_PID_MODE:
       {
         StoreCurrentValue = constrain(StoreCurrentValue, g_DefaultLimits[2 * VarIndex], g_DefaultLimits[2 * VarIndex + 1]);
         break;
@@ -1018,7 +1047,7 @@ void UpdateVarWithStoreVar()
     case STORE_PID_T:           PID_T = StoreCurrentValue; break;
     case STORE_PID_M:           PID_M = StoreCurrentValue; break;
     case STORE_PID_BLOCKS:      PID_BLOCKS = StoreCurrentValue; break;
-    case STORE_PID_AUTO:        PID_AUTO = StoreCurrentValue; break;
+    case STORE_PID_MODE:        PID_MODE = StoreCurrentValue; break;
 
     default: break;
   }
@@ -1112,6 +1141,10 @@ void loop()
         
         ++VarIndex;
 
+        // Skip Gist for all non-Z mode
+        if (PID_MODE != ePID_ZigZag && VarIndex == STORE_TEMP_GIST)
+          ++VarIndex;
+
         if (VarIndex > SCREENS_BOUNDS[2 * ScreenIndex + 1])
           VarIndex = SCREENS_BOUNDS[2 * ScreenIndex];
 
@@ -1196,6 +1229,24 @@ void PrintValueOn1Line(const byte Col, const byte Row, const char* Descr, const 
 }
 
 /*********************************************************************/
+void PrintTextOn1Line(const byte Col, const byte Row, const char* Descr, const char* Text, const byte TextWidth, const byte Index)
+{
+  if (StoreValueUpdatedFlags & (1 << Index))
+  {
+    lcd.setCursor(Col, Row);  
+    lcd.print(Descr);
+
+    byte Offset = lcd.print(Text);
+    Offset += PrintMarker(Index);
+    
+    for (; Offset < TextWidth; Offset++)
+      lcd.print(' ');
+      
+    StoreValueUpdatedFlags &= ~(1 << Index);
+  }
+}
+
+/*********************************************************************/
 void PrintValueOn2Line(const byte Col, const byte Row, const char* Descr, const int Value, const byte ValueWidth, const byte Index, const byte Shift = 1)
 {
   if (StoreValueUpdatedFlags & (1 << Index))
@@ -1228,17 +1279,17 @@ void PrintScreen()
     PrintValueOn2Line(0, 2, "Tmax", T_max_avar, 4, STORE_MOTOR_MAX);
     PrintValueOn2Line(5, 2, "Tmin", T_min_avar, 4, STORE_MOTOR_MIN);
     PrintValueOn2Line(10, 2, "t3", t3, 3, STORE_TEMP_MAX, 0);
-    if (PID_AUTO == 0)
+    if (PID_MODE == ePID_ZigZag)
       PrintValueOn2Line(13, 2, "Gst", GST, 3, STORE_TEMP_GIST);
 
-    PrintText(19, 3, (PID_AUTO == 0) ? "Z" : "A");
+    PrintText(19, 3, printPIDMode(PID_MODE));
   }
   else if (ScreenIndex == SCREEN_INDEX_PID)
   {
     PrintValueOn1Line(0, 0, "T%=", PID_T, 4, STORE_PID_T);
-    PrintValueOn1Line(0, 1, "M%#", PID_M, 4, STORE_PID_M);
+    PrintValueOn1Line(0, 1, "M%=", PID_M, 4, STORE_PID_M);
     PrintValueOn1Line(9, 0, "Fore=", PID_BLOCKS, 2, STORE_PID_BLOCKS);
-    PrintValueOn1Line(9, 1, "Auto=", PID_AUTO, 2, STORE_PID_AUTO);
+    PrintTextOn1Line(9, 1, "Mode:", printPIDMode(PID_MODE), 2, STORE_PID_MODE);
 
     PrintText(7, 3, "PID");
   }
@@ -1335,7 +1386,15 @@ void sound()
   {
     const byte MotorSpeedLast = motorSpeedCurrent;
     
-    if (PID_AUTO == 0)
+    switch (PID_MODE)
+    {
+
+    case ePID_Manual:
+    {
+        motorSpeedCurrent = motorSpeedMax;
+    } break;
+
+    case ePID_ZigZag:
     {
       if (t2 < t1 - GST)
       {
@@ -1350,13 +1409,16 @@ void sound()
         // If turn ON the case (motor is off) and temp is inbetween GST - set speed to max
         if (motorSpeedCurrent == 0)
         {
-          motorSpeedCurrent = motorSpeedMax;
+          motorSpeedCurrent = (motorSpeedMax + motorSpeedMin) / 2;
         }
       }
-    }
-    else if (UpdatedTemp)
+    } break;
+
+    case ePID_HalfAuto:
+    case ePID_Auto:
     {
-      // PID Auto Motor 
+      if (!UpdatedTemp)
+        break;
 
       static MeanCyclic<60> s_MeanT;
       static MeanCyclic<60> s_MeanM;
@@ -1364,13 +1426,16 @@ void sound()
       s_MeanT.Add(t2);
 
       const float M0 = s_MeanM.Mean();
-
       const float Tc = s_MeanT.Mean();
+
       const float dT1 = T2 - Tc;
+
+      // Forecast temperature
       const float Tx = T2 + dT1 * s_MeanT.Num() / s_MeanT.N() / 2 * PID_BLOCKS;
       const float dT = Tx - t1;
+      const float dM = motorSpeedCurrent - M0;
 
-      const float dMSC = -dT * PID_T / 100;
+      const float dMSC = -dT * PID_T / 100 - dM * PID_M / 100;
       const float motorSpeed = M0 + dMSC;
 
       motorSpeedCurrent = constrain(motorSpeed, motorSpeedMin, motorSpeedMax);
@@ -1382,45 +1447,13 @@ void sound()
         << " Tc=" << Tc
         << " Tx=" << Tx
         << " M0=" << M0
+        << " dM=" << dM
         << " dMS=" << dMSC
         << " MS=" << motorSpeed
         << NL();
+    } break;
 
-/*
-      static unsigned long s_LastBlockUpdate = 0;
-      static unsigned long s_M0_Sum = 0;
-      static unsigned long s_M0_N = 0;
-
-      s_M0_Sum += motorSpeedCurrent;
-      s_M0_N++;
-
-      // wraping millis()
-      if (CurrTime < s_LastBlockUpdate)
-      {
-        LOG << T() << "PID. WRAP millis()!" << NL();
-        s_LastBlockUpdate = 0;
-      }
-
-      if (CurrTime >= (s_LastBlockUpdate + long(1000) * PID_BLOCKS))
-      {
-        if (s_M0_N)
-          M0 = constrain(float(s_M0_Sum) / s_M0_N, motorSpeedMin, motorSpeedMax);
-        else
-          M0 = 0;
-
-        LOG << T() 
-          << "PID. Block. M0=" << M0
-          << " M0S=" << s_M0_Sum
-          << " M0N=" << s_M0_N
-          << NL();
-
-        s_M0_Sum = 0;
-        s_M0_N = 0;
-
-        s_LastBlockUpdate = CurrTime;
-      }
-*/
-    }
+    }; // END of MOTOR speed choose
 
     // Limit motor speed to be in actual speed ranges
     //    motorSpeedCurrent = constrain(motorSpeedCurrent, motorSpeedMin, motorSpeedMax);
